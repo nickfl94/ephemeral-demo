@@ -3,10 +3,7 @@ name: Ephemeral Environment Management
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [ dev ]
-    paths:
-      - 'src/**'
-      - 'demo-app/**'
+    branches: [main, develop, dev]
 
 env:
   AWS_REGION: us-east-1
