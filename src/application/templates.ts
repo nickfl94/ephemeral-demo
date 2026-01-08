@@ -256,6 +256,48 @@ export class ApplicationTemplates {
   }
 
   /**
+   * Get template configuration for Ephemeral Demo application
+   */
+  static getDemoTemplate(
+    name: string,
+    version: string = 'latest',
+    customizations: PartialApplicationConfig = {}
+  ): ApplicationConfig {
+    const baseTemplate: ApplicationConfig = {
+      name,
+      type: 'webapp',
+      version,
+      docker: {
+        baseImage: 'node:18-alpine',
+        port: 3000,
+        env: {
+          NODE_ENV: 'production',
+          PORT: '3000',
+          ENVIRONMENT_ID: '${ENVIRONMENT_ID}',
+          BRANCH: '${BRANCH}',
+          AWS_REGION: '${AWS_REGION}',
+          INSTANCE_TYPE: '${INSTANCE_TYPE}',
+          DEPLOYED_AT: '${DEPLOYED_AT}',
+          APP_VERSION: '${APP_VERSION}',
+          BUILD_NUMBER: '${BUILD_NUMBER}',
+          GIT_COMMIT: '${GIT_COMMIT}'
+        },
+        buildContext: './demo-app',
+        dockerfile: 'Dockerfile'
+      },
+      healthCheck: {
+        path: '/health',
+        expectedStatus: 200,
+        timeout: 10,
+        retries: 3,
+        interval: 5
+      }
+    };
+
+    return this.mergeConfigurations(baseTemplate, customizations);
+  }
+
+  /**
    * Get all available template types
    */
   static getAvailableTemplates(): Array<{
@@ -306,6 +348,12 @@ export class ApplicationTemplates {
         type: 'fullstack',
         description: 'Next.js full-stack application with API routes',
         baseImage: 'node:18-alpine'
+      },
+      {
+        name: 'demo',
+        type: 'webapp',
+        description: 'Ephemeral Environment Demo application with metrics and testing',
+        baseImage: 'node:18-alpine'
       }
     ];
   }
@@ -334,6 +382,8 @@ export class ApplicationTemplates {
         return this.getPythonFlaskTemplate(appName, version, customizations);
       case 'nextjs':
         return this.getNextJsTemplate(appName, version, customizations);
+      case 'demo':
+        return this.getDemoTemplate(appName, version, customizations);
       default:
         throw new Error(`Unknown template: ${templateName}. Available templates: ${this.getAvailableTemplates().map(t => t.name).join(', ')}`);
     }

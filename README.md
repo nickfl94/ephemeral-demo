@@ -9,6 +9,7 @@ A comprehensive demonstration system that showcases the benefits of using Terraf
 - **Application Deployment**: Automated application deployment pipeline
 - **Git Integration**: Webhook-based environment management
 - **GitHub Actions Integration**: Automated CI/CD with ephemeral environments
+- **Demo Web Application**: Interactive web interface showcasing ephemeral environments
 - **Cost Monitoring**: Real-time cost tracking and reporting (coming soon)
 - **Demo Workflows**: Interactive demonstration scenarios
 
@@ -93,6 +94,25 @@ npm run dev -- config --profile development
 ```
 
 ## Demo Scenarios
+
+### Demo Web Application
+
+The system includes a comprehensive demo web application (`demo-app/`) that provides an interactive interface for exploring ephemeral environments:
+
+- **Real-time Environment Info**: Displays branch, region, uptime, and deployment details
+- **System Metrics**: Live CPU, memory, and load monitoring with auto-refresh
+- **Load Testing**: Interactive performance testing with configurable intensity
+- **Infrastructure Overview**: Visual representation of AWS components
+- **Health Monitoring**: Real-time health status and alerts
+
+To run the demo webapp locally:
+```bash
+cd demo-app
+npm install
+npm start
+```
+
+The demo webapp is automatically deployed when using the "demo" application template and provides a visual demonstration of ephemeral environment capabilities.
 
 ### Basic Demo
 ```bash
