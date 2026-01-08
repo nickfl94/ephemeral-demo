@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ephemeral Environment Demo</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <i class="fas fa-cloud"></i>
+                    <span>Ephemeral Demo</span>
+                </div>
+                <div class="nav-menu">
+                    <a href="#overview" class="nav-link active" data-page="overview">
+                        <i class="fas fa-home"></i> Overview
+                    </a>
+                    <a href="#environment" class="nav-link" data-page="environment">
+                        <i class="fas fa-server"></i> Environment
+                    </a>
+                    <a href="#metrics" class="nav-link" data-page="metrics">
+                        <i class="fas fa-chart-line"></i> Metrics
+                    </a>
+                    <a href="#testing" class="nav-link" data-page="testing">
+                        <i class="fas fa-vial"></i> Testing
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Overview Page -->
+            <div id="overview-page" class="page active">
+                <div class="hero">
+                    <div class="hero-content">
+                        <h1><i class="fas fa-rocket"></i> Welcome to Your Ephemeral Environment!</h1>
+                        <p class="hero-subtitle">
+                            This is a live demonstration of an automatically provisioned AWS environment
+                            created specifically for your branch or pull request.
+                        </p>
+                        <div class="hero-stats">
+                            <div class="stat-card">
+                                <i class="fas fa-clock"></i>
+                                <div>
+                                    <div class="stat-value" id="uptime">Loading...</div>
+                                    <div class="stat-label">Uptime</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-code-branch"></i>
+                                <div>
+                                    <div class="stat-value" id="branch">Loading...</div>
+                                    <div class="stat-label">Branch</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <div>
+                                    <div class="stat-value" id="region">Loading...</div>
+                                    <div class="stat-label">AWS Region</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="feature-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h3>Instant Provisioning</h3>
+                            <p>This environment was automatically created in minutes using Terraform and AWS infrastructure as code.</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <h3>Isolated & Secure</h3>
+                            <p>Each environment is completely isolated with its own VPC, security groups, and resources.</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <h3>Cost Optimized</h3>
+                            <p>Automatic cleanup ensures you only pay for what you use, with built-in cost monitoring and alerts.</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-git-alt"></i>
+                            </div>
+                            <h3>Git Integrated</h3>
+                            <p>Environments are automatically created for PRs and destroyed when branches are merged or deleted.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="info-panel">
+                        <h2><i class="fas fa-info-circle"></i> How It Works</h2>
+                        <div class="workflow-steps">
+                            <div class="step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <h4>Pull Request Created</h4>
+                                    <p>When you create a PR, GitHub Actions triggers the provisioning workflow</p>
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <h4>Infrastructure Provisioned</h4>
+                                    <p>Terraform creates AWS resources: VPC, EC2/ECS, security groups, and load balancers</p>
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <h4>Application Deployed</h4>
+                                    <p>Your application is built, containerized, and deployed to the new infrastructure</p>
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">4</div>
+                                <div class="step-content">
+                                    <h4>Testing & Review</h4>
+                                    <p>Integration tests run automatically, and reviewers can test the live environment</p>
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">5</div>
+                                <div class="step-content">
+                                    <h4>Automatic Cleanup</h4>
+                                    <p>When the PR is closed or merged, all resources are automatically destroyed</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environment Page -->
+            <div id="environment-page" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-server"></i> Environment Details</h1>
+                    <p>Detailed information about this ephemeral environment</p>
+                </div>
+
+                <div class="content-section">
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h3><i class="fas fa-id-card"></i> Environment Info</h3>
+                            <div class="info-list" id="environment-info">
+                                <div class="loading">Loading environment information...</div>
+                            </div>
+                        </div>
+                        <div class="info-card">
+                            <h3><i class="fas fa-cogs"></i> System Info</h3>
+                            <div class="info-list" id="system-info">
+                                <div class="loading">Loading system information...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="info-panel">
+                        <h2><i class="fas fa-network-wired"></i> Infrastructure Components</h2>
+                        <div class="infrastructure-grid">
+                            <div class="infra-component">
+                                <i class="fas fa-cloud"></i>
+                                <h4>VPC</h4>
+                                <p>Isolated virtual private cloud with custom CIDR block</p>
+                            </div>
+                            <div class="infra-component">
+                                <i class="fas fa-server"></i>
+                                <h4>Compute</h4>
+                                <p>EC2 instances or ECS containers running your application</p>
+                            </div>
+                            <div class="infra-component">
+                                <i class="fas fa-shield-alt"></i>
+                                <h4>Security Groups</h4>
+                                <p>Firewall rules controlling inbound and outbound traffic</p>
+                            </div>
+                            <div class="infra-component">
+                                <i class="fas fa-balance-scale"></i>
+                                <h4>Load Balancer</h4>
+                                <p>Application Load Balancer distributing traffic</p>
+                            </div>
+                            <div class="infra-component">
+                                <i class="fas fa-database"></i>
+                                <h4>Storage</h4>
+                                <p>S3 buckets and EBS volumes for persistent data</p>
+                            </div>
+                            <div class="infra-component">
+                                <i class="fas fa-chart-bar"></i>
+                                <h4>Monitoring</h4>
+                                <p>CloudWatch logs, metrics, and alarms</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Page -->
+            <div id="metrics-page" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-chart-line"></i> System Metrics</h1>
+                    <p>Real-time performance metrics and system health</p>
+                    <button id="refresh-metrics" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> Refresh Metrics
+                    </button>
+                </div>
+
+                <div class="content-section">
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <i class="fas fa-microchip"></i>
+                                <h3>CPU Usage</h3>
+                            </div>
+                            <div class="metric-value" id="cpu-usage">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <i class="fas fa-memory"></i>
+                                <h3>Memory Usage</h3>
+                            </div>
+                            <div class="metric-value" id="memory-usage">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <i class="fas fa-hdd"></i>
+                                <h3>System Load</h3>
+                            </div>
+                            <div class="metric-value" id="system-load">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <i class="fas fa-clock"></i>
+                                <h3>Uptime</h3>
+                            </div>
+                            <div class="metric-value" id="uptime-metric">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="info-panel">
+                        <h2><i class="fas fa-heartbeat"></i> Health Status</h2>
+                        <div id="health-status" class="health-grid">
+                            <div class="loading">Loading health status...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Testing Page -->
+            <div id="testing-page" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-vial"></i> Load Testing</h1>
+                    <p>Test the performance and resilience of this ephemeral environment</p>
+                </div>
+
+                <div class="content-section">
+                    <div class="test-panel">
+                        <h2><i class="fas fa-play-circle"></i> Run Load Test</h2>
+                        <p>Simulate different load scenarios to test the environment's performance</p>
+                        
+                        <div class="test-controls">
+                            <div class="control-group">
+                                <label for="test-duration">Duration (seconds):</label>
+                                <select id="test-duration">
+                                    <option value="5000">5 seconds</option>
+                                    <option value="10000">10 seconds</option>
+                                    <option value="30000">30 seconds</option>
+                                    <option value="60000">1 minute</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="test-intensity">Intensity:</label>
+                                <select id="test-intensity">
+                                    <option value="light">Light</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="heavy">Heavy</option>
+                                </select>
+                            </div>
+                            <button id="start-load-test" class="btn btn-primary">
+                                <i class="fas fa-rocket"></i> Start Load Test
+                            </button>
+                        </div>
+
+                        <div id="test-results" class="test-results" style="display: none;">
+                            <h3><i class="fas fa-chart-bar"></i> Test Results</h3>
+                            <div id="test-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="info-panel">
+                        <h2><i class="fas fa-info-circle"></i> About Load Testing</h2>
+                        <p>
+                            Load testing helps validate that your application can handle expected traffic
+                            and identifies performance bottlenecks before they reach production.
+                        </p>
+                        <div class="test-info-grid">
+                            <div class="test-info-card">
+                                <i class="fas fa-feather-alt"></i>
+                                <h4>Light Load</h4>
+                                <p>Simulates normal user activity with minimal CPU usage</p>
+                            </div>
+                            <div class="test-info-card">
+                                <i class="fas fa-weight-hanging"></i>
+                                <h4>Medium Load</h4>
+                                <p>Simulates moderate traffic with increased CPU and memory usage</p>
+                            </div>
+                            <div class="test-info-card">
+                                <i class="fas fa-dumbbell"></i>
+                                <h4>Heavy Load</h4>
+                                <p>Simulates high traffic scenarios to test system limits</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4><i class="fas fa-cloud"></i> Ephemeral Demo</h4>
+                    <p>Demonstrating the power of infrastructure as code and ephemeral environments</p>
+                </div>
+                <div class="footer-section">
+                    <h4><i class="fas fa-link"></i> Quick Links</h4>
+                    <ul>
+                        <li><a href="/health">Health Check</a></li>
+                        <li><a href="/api/environment">Environment API</a></li>
+                        <li><a href="/api/metrics">Metrics API</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4><i class="fas fa-code"></i> Technology Stack</h4>
+                    <ul>
+                        <li>Node.js & Express</li>
+                        <li>AWS Infrastructure</li>
+                        <li>Terraform IaC</li>
+                        <li>GitHub Actions CI/CD</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Ephemeral Deployment Demo. Built with ❤️ for developers.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
