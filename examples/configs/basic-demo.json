@@ -1,0 +1,50 @@
+{
+  "name": "Basic Demo Configuration",
+  "description": "Simple configuration for basic ephemeral environment demonstrations",
+  "aws": {
+    "region": "us-east-1",
+    "profile": "default"
+  },
+  "defaults": {
+    "instanceType": "t3.micro",
+    "maxLifetime": 4,
+    "costThreshold": 25
+  },
+  "terraform": {
+    "stateBackend": {
+      "bucket": "ephemeral-demo-basic-terraform-state",
+      "region": "us-east-1",
+      "dynamodbTable": "ephemeral-demo-basic-terraform-locks"
+    }
+  },
+  "profiles": [
+    {
+      "name": "webapp-demo",
+      "description": "Web application demonstration",
+      "defaults": {
+        "template": "webapp",
+        "region": "us-east-1",
+        "instanceType": "t3.micro",
+        "maxLifetime": 2,
+        "costThreshold": 15,
+        "autoDestroy": true
+      },
+      "aws": {
+        "region": "us-east-1"
+      },
+      "terraform": {
+        "stateBackend": {
+          "bucket": "ephemeral-demo-webapp-terraform-state",
+          "region": "us-east-1",
+          "dynamodbTable": "ephemeral-demo-webapp-terraform-locks"
+        }
+      },
+      "tags": {
+        "Project": "ephemeral-demo",
+        "Type": "webapp",
+        "Purpose": "demonstration",
+        "CostCenter": "demo"
+      }
+    }
+  ]
+}

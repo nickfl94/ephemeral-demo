@@ -1,0 +1,312 @@
+name: Ephemeral Environment Management
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '18'
+
+jobs:
+  # Job 1: Provision environment on PR open/update
+  provision-environment:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened'
+    runs-on: ubuntu-latest
+    outputs:
+      environment-id: ${{ steps.provision.outputs.environment-id }}
+      environment-url: ${{ steps.provision.outputs.environment-url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Initialize ephemeral demo configuration
+        run: |
+          mkdir -p ~/.ephemeral-demo
+          cat > ~/.ephemeral-demo/config.json << EOF
+          {
+            "aws": {
+              "region": "${{ env.AWS_REGION }}"
+            },
+            "defaults": {
+              "instanceType": "t3.micro",
+              "maxLifetime": 4,
+              "costThreshold": 25
+            },
+            "terraform": {
+              "stateBackend": {
+                "bucket": "${{ secrets.TERRAFORM_STATE_BUCKET }}",
+                "region": "${{ env.AWS_REGION }}",
+                "dynamodbTable": "${{ secrets.TERRAFORM_STATE_TABLE }}"
+              }
+            }
+          }
+          EOF
+
+      - name: Provision ephemeral environment
+        id: provision
+        run: |
+          # Extract branch name and sanitize it
+          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
+          
+          # Provision environment
+          RESULT=$(npm run start -- provision \
+            --branch "$BRANCH_NAME" \
+            --template webapp \
+            --region ${{ env.AWS_REGION }} \
+            --instance-type t3.micro \
+            --max-lifetime 4 \
+            --cost-threshold 25 \
+            --output json)
+          
+          # Extract environment details
+          ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId')
+          ENV_URL=$(echo "$RESULT" | jq -r '.data.urls.application')
+          
+          echo "environment-id=$ENV_ID" >> $GITHUB_OUTPUT
+          echo "environment-url=$ENV_URL" >> $GITHUB_OUTPUT
+          
+          # Store environment info for cleanup
+          echo "$ENV_ID" > .environment-id
+
+      - name: Upload environment info
+        uses: actions/upload-artifact@v4
+        with:
+          name: environment-info-${{ github.run_id }}
+          path: .environment-id
+          retention-days: 7
+
+      - name: Comment on PR with environment details
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const envId = '${{ steps.provision.outputs.environment-id }}';
+            const envUrl = '${{ steps.provision.outputs.environment-url }}';
+            
+            const comment = `## 🚀 Ephemeral Environment Deployed
+            
+            **Environment ID:** \`${envId}\`
+            **Application URL:** ${envUrl}
+            **Branch:** \`${{ github.head_ref }}\`
+            **Commit:** \`${{ github.sha }}\`
+            
+            This environment will be automatically destroyed when the PR is closed or after 4 hours of inactivity.
+            
+            ### Quick Actions
+            - 🔍 [View Application](${envUrl})
+            - 📊 [Check Status](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - 🗑️ [Manual Cleanup](#) (if needed)
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Job 2: Run tests against the ephemeral environment
+  test-environment:
+    needs: provision-environment
+    if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for environment to be ready
+        run: |
+          ENV_URL="${{ needs.provision-environment.outputs.environment-url }}"
+          echo "Waiting for environment to be ready at $ENV_URL"
+          
+          for i in {1..30}; do
+            if curl -f -s "$ENV_URL/health" > /dev/null; then
+              echo "Environment is ready!"
+              break
+            fi
+            echo "Attempt $i: Environment not ready yet, waiting 30 seconds..."
+            sleep 30
+          done
+
+      - name: Run integration tests
+        env:
+          TEST_ENVIRONMENT_URL: ${{ needs.provision-environment.outputs.environment-url }}
+        run: |
+          # Run your integration tests against the ephemeral environment
+          npm run test:integration
+
+      - name: Run performance tests
+        env:
+          TEST_ENVIRONMENT_URL: ${{ needs.provision-environment.outputs.environment-url }}
+        run: |
+          # Run performance tests
+          npm run test:performance
+
+  # Job 3: Cleanup environment on PR close
+  cleanup-environment:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Initialize ephemeral demo configuration
+        run: |
+          mkdir -p ~/.ephemeral-demo
+          cat > ~/.ephemeral-demo/config.json << EOF
+          {
+            "aws": {
+              "region": "${{ env.AWS_REGION }}"
+            },
+            "defaults": {
+              "instanceType": "t3.micro",
+              "maxLifetime": 4,
+              "costThreshold": 25
+            },
+            "terraform": {
+              "stateBackend": {
+                "bucket": "${{ secrets.TERRAFORM_STATE_BUCKET }}",
+                "region": "${{ env.AWS_REGION }}",
+                "dynamodbTable": "${{ secrets.TERRAFORM_STATE_TABLE }}"
+              }
+            }
+          }
+          EOF
+
+      - name: Find and destroy environment
+        run: |
+          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          
+          # List environments for this branch
+          ENVIRONMENTS=$(npm run start -- status --output json | jq -r '.data[] | select(.environment.branch == "'$BRANCH_NAME'") | .environment.id')
+          
+          # Destroy each environment
+          for ENV_ID in $ENVIRONMENTS; do
+            echo "Destroying environment: $ENV_ID"
+            npm run start -- destroy "$ENV_ID" --force
+          done
+
+      - name: Comment on PR about cleanup
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## 🗑️ Environment Cleanup Complete
+            
+            The ephemeral environment for this PR has been destroyed.
+            
+            **Branch:** \`${{ github.head_ref }}\`
+            **Action:** PR ${{ github.event.action }}
+            **Cleanup Time:** ${new Date().toISOString()}
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Job 4: Scheduled cleanup of old environments
+  scheduled-cleanup:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Cleanup expired environments
+        run: |
+          echo "Running scheduled cleanup of expired environments..."
+          npm run start -- cleanup --expired --force
+
+# Add scheduled trigger for cleanup
+on:
+  schedule:
+    # Run cleanup every 2 hours
+    - cron: '0 */2 * * *'

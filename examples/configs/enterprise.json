@@ -1,0 +1,131 @@
+{
+  "name": "Enterprise Configuration",
+  "description": "Enterprise-grade configuration with compliance and governance",
+  "aws": {
+    "region": "us-east-1",
+    "profile": "production"
+  },
+  "defaults": {
+    "instanceType": "t3.large",
+    "maxLifetime": 168,
+    "costThreshold": 500
+  },
+  "terraform": {
+    "stateBackend": {
+      "bucket": "enterprise-ephemeral-terraform-state-prod",
+      "region": "us-east-1",
+      "dynamodbTable": "enterprise-ephemeral-terraform-locks-prod"
+    }
+  },
+  "git": {
+    "webhookSecret": "enterprise-webhook-secret-change-me",
+    "repositoryUrl": "https://github.com/enterprise/main-application.git",
+    "webhookPort": 8443
+  },
+  "profiles": [
+    {
+      "name": "staging-validation",
+      "description": "Pre-production staging validation environment",
+      "defaults": {
+        "template": "fullstack",
+        "region": "us-east-1",
+        "instanceType": "t3.large",
+        "maxLifetime": 72,
+        "costThreshold": 300,
+        "autoDestroy": true
+      },
+      "aws": {
+        "region": "us-east-1"
+      },
+      "terraform": {
+        "stateBackend": {
+          "bucket": "enterprise-ephemeral-staging-terraform-state",
+          "region": "us-east-1",
+          "dynamodbTable": "enterprise-ephemeral-staging-terraform-locks"
+        }
+      },
+      "git": {
+        "webhookSecret": "enterprise-staging-webhook-secret",
+        "repositoryUrl": "https://github.com/enterprise/main-application.git",
+        "webhookPort": 8443
+      },
+      "tags": {
+        "Project": "main-application",
+        "Environment": "staging-validation",
+        "BusinessUnit": "engineering",
+        "CostCenter": "infrastructure",
+        "Compliance": "required",
+        "DataClassification": "internal",
+        "Owner": "platform-team",
+        "BackupRequired": "false",
+        "MonitoringLevel": "standard"
+      }
+    },
+    {
+      "name": "security-testing",
+      "description": "Security and penetration testing environment",
+      "defaults": {
+        "template": "fullstack",
+        "region": "us-east-1",
+        "instanceType": "t3.xlarge",
+        "maxLifetime": 48,
+        "costThreshold": 400,
+        "autoDestroy": true
+      },
+      "aws": {
+        "region": "us-east-1"
+      },
+      "terraform": {
+        "stateBackend": {
+          "bucket": "enterprise-ephemeral-security-terraform-state",
+          "region": "us-east-1",
+          "dynamodbTable": "enterprise-ephemeral-security-terraform-locks"
+        }
+      },
+      "tags": {
+        "Project": "main-application",
+        "Environment": "security-testing",
+        "BusinessUnit": "security",
+        "CostCenter": "security-operations",
+        "Compliance": "required",
+        "DataClassification": "confidential",
+        "Owner": "security-team",
+        "TestType": "security",
+        "IsolationLevel": "high"
+      }
+    },
+    {
+      "name": "performance-testing",
+      "description": "Load and performance testing environment",
+      "defaults": {
+        "template": "fullstack",
+        "region": "us-east-1",
+        "instanceType": "c5.2xlarge",
+        "maxLifetime": 24,
+        "costThreshold": 600,
+        "autoDestroy": true
+      },
+      "aws": {
+        "region": "us-east-1"
+      },
+      "terraform": {
+        "stateBackend": {
+          "bucket": "enterprise-ephemeral-performance-terraform-state",
+          "region": "us-east-1",
+          "dynamodbTable": "enterprise-ephemeral-performance-terraform-locks"
+        }
+      },
+      "tags": {
+        "Project": "main-application",
+        "Environment": "performance-testing",
+        "BusinessUnit": "engineering",
+        "CostCenter": "qa-operations",
+        "Compliance": "required",
+        "DataClassification": "internal",
+        "Owner": "performance-team",
+        "TestType": "performance",
+        "ResourceIntensive": "true"
+      }
+    }
+  ]
+}
