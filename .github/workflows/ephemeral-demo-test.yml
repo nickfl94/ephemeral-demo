@@ -8,6 +8,11 @@ on:
     branches: [feature/*, dev, develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 env:
   NODE_VERSION: '18'
 

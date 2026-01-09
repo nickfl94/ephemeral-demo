@@ -25,6 +25,11 @@ on:
     # Run cleanup every 2 hours
     - cron: '0 */2 * * *'
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 env:
   AWS_REGION: us-east-1
   NODE_VERSION: '18'
