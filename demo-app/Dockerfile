@@ -1,14 +1,14 @@
 # Multi-stage Dockerfile for Ephemeral Demo React App
 
 # Builder stage
-FROM node:18-alpine as builder
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install all dependencies (including dev dependencies for building)
 RUN npm install
 
 # Copy application code
@@ -18,20 +18,18 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine as production
+FROM node:18-alpine AS production
 
 WORKDIR /app
 
-# Install system dependencies (without terraform)
-RUN apk add --no-cache \
-    curl \
-    && rm -rf /var/cache/apk/*
+# Install system dependencies
+RUN apk add --no-cache curl && rm -rf /var/cache/apk/*
 
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies
-RUN npm ci --omit=dev
+# Install only production dependencies
+RUN npm install --only=production
 
 # Copy built application from builder stage
 COPY --from=builder /app/build ./build
