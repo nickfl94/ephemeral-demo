@@ -88,11 +88,20 @@
         "s3:GetObject",
         "s3:PutObject",
         "s3:DeleteObject",
-        "s3:ListBucket"
+        "s3:ListBucket",
+        "s3:CreateBucket",
+        "s3:GetBucketVersioning",
+        "s3:PutBucketVersioning",
+        "s3:GetBucketEncryption",
+        "s3:PutBucketEncryption",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:PutBucketPublicAccessBlock"
       ],
       "Resource": [
         "arn:aws:s3:::ephemeral-demo-*-terraform-state",
-        "arn:aws:s3:::ephemeral-demo-*-terraform-state/*"
+        "arn:aws:s3:::ephemeral-demo-*-terraform-state/*",
+        "arn:aws:s3:::enigma-global-*-terraform-state*",
+        "arn:aws:s3:::enigma-global-*-terraform-state*/*"
       ]
     },
     {
@@ -100,10 +109,15 @@
       "Effect": "Allow",
       "Action": [
         "dynamodb:GetItem",
+        "dynamodb:CreateTable",
         "dynamodb:PutItem",
-        "dynamodb:DeleteItem"
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable"
       ],
-      "Resource": "arn:aws:dynamodb:*:*:table/ephemeral-demo-*-terraform-locks"
+      "Resource": [
+        "arn:aws:dynamodb:*:*:table/ephemeral-demo-*-terraform-locks",
+        "arn:aws:dynamodb:*:*:table/enigma-global-*-terraform-locks"
+      ]
     },
     {
       "Sid": "CloudWatchLogs",
@@ -138,21 +152,6 @@
         "iam:PassRole"
       ],
       "Resource": "arn:aws:iam::*:role/EphemeralDemoRole-*"
-    },
-    {
-      "Sid": "ResourceTagging",
-      "Effect": "Allow",
-      "Action": [
-        "tag:GetResources",
-        "tag:TagResources",
-        "tag:UntagResources"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:RequestedRegion": ["us-east-1", "us-west-2"]
-        }
-      }
     }
   ]
 }
