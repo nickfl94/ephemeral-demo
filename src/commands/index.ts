@@ -54,7 +54,7 @@ export class DemoCommands {
 
       // Create overrides from command line options
       const overrides: Partial<EnvironmentConfig> = {};
-      if (options.template) overrides.template = options.template as 'webapp' | 'api' | 'fullstack';
+      if (options.template) overrides.template = options.template as 'webapp' | 'api' | 'fullstack' | 'demo';
       if (options.region) overrides.region = options.region;
       if (options.instanceType) overrides.instanceType = options.instanceType;
       if (options.autoDestroy !== undefined) overrides.autoDestroy = options.autoDestroy;
@@ -405,8 +405,8 @@ export class DemoCommands {
       throw new Error('Branch name is required');
     }
 
-    if (!['webapp', 'api', 'fullstack'].includes(config.template)) {
-      throw new Error('Template must be one of: webapp, api, fullstack');
+    if (!['webapp', 'api', 'fullstack', 'demo'].includes(config.template)) {
+      throw new Error('Template must be one of: webapp, api, fullstack, demo');
     }
 
     if (!config.region) {

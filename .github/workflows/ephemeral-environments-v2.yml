@@ -128,7 +128,7 @@ jobs:
           echo "Starting environment provisioning..."
           RESULT=$(npm run start -- provision \
             --branch "$BRANCH_NAME" \
-            --template webapp \
+            --template demo \
             --region ${{ env.AWS_REGION }} \
             --instance-type t3.micro \
             --max-lifetime 4 \
@@ -345,7 +345,7 @@ jobs:
           case $ACTION in
             provision)
               echo "Provisioning environment for branch: $BRANCH"
-              npm run start -- provision --branch "$BRANCH" --template webapp --output json
+              npm run start -- provision --branch "$BRANCH" --template demo --output json
               ;;
             cleanup)
               echo "Running cleanup for branch: $BRANCH"

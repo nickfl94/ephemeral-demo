@@ -11,7 +11,7 @@ export interface EnvironmentConfig {
   /** Git branch associated with this environment */
   branch: string;
   /** Template type for the environment */
-  template: 'webapp' | 'api' | 'fullstack';
+  template: 'webapp' | 'api' | 'fullstack' | 'demo';
   /** AWS region for deployment */
   region: string;
   /** EC2 instance type to use */

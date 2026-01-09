@@ -17,7 +17,7 @@ export interface ConfigProfile {
   description: string;
   /** Default environment settings */
   defaults: {
-    template: 'webapp' | 'api' | 'fullstack';
+    template: 'webapp' | 'api' | 'fullstack' | 'demo';
     region: string;
     instanceType: string;
     maxLifetime: number;
@@ -348,7 +348,7 @@ export class ConfigurationManager {
       name: 'default',
       description: 'Default configuration for general use',
       defaults: {
-        template: 'webapp',
+        template: 'demo',
         region: 'us-east-1',
         instanceType: 't3.micro',
         maxLifetime: 24,

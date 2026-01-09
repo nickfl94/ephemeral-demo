@@ -146,7 +146,7 @@ env:
 ```bash
 # Test CLI locally
 npm run build
-npm run start -- provision --branch test-branch --template webapp
+npm run start -- provision --branch test-branch --template demo
 
 # Check status
 npm run start -- status
