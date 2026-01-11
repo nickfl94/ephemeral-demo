@@ -31,7 +31,7 @@ export class ConfigCLIUtils {
         type: 'input',
         name: 'awsRegion',
         message: 'AWS Region:',
-        default: 'us-east-1',
+        default: 'ap-southeast-2',
         validate: (input: string) => input.trim().length > 0 || 'AWS region is required'
       },
       {
@@ -301,7 +301,7 @@ export class ConfigCLIUtils {
         type: 'input',
         name: 'region',
         message: 'AWS Region:',
-        default: 'us-east-1'
+        default: 'ap-southeast-2'
       },
       {
         type: 'list',

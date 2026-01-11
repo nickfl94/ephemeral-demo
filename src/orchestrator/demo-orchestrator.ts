@@ -57,7 +57,7 @@ export class DemoOrchestrator {
     this.deploymentPipeline = new DeploymentPipeline(config.ecrRegistry);
     this.applicationFactory = new ApplicationFactory({
       ecrRegistry: config.ecrRegistry,
-      region: 'us-east-1' // Default region, will be overridden by environment config
+      region: 'ap-southeast-2' // Default region, will be overridden by environment config
     });
     this.appConfigManager = new ConfigManager();
     

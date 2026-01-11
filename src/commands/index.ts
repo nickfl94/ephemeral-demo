@@ -22,7 +22,7 @@ export class DemoCommands {
     // Initialize orchestrator with configuration
     this.orchestrator = new DemoOrchestrator({
       configManager,
-      ecrRegistry: 'your-account-id.dkr.ecr.us-east-1.amazonaws.com/ephemeral-demo',
+      ecrRegistry: '911167929263.dkr.ecr.ap-southeast-2.amazonaws.com/ephemeral-demo',
       enableGitIntegration: false // Will be enabled based on configuration
     });
   }

@@ -12,7 +12,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const ENVIRONMENT_INFO = {
   environmentId: process.env.ENVIRONMENT_ID || 'local-dev',
   branch: process.env.BRANCH || 'main',
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'ap-southeast-2',
   instanceType: process.env.INSTANCE_TYPE || 't3.micro',
   deployedAt: process.env.DEPLOYED_AT || new Date().toISOString(),
   version: process.env.APP_VERSION || '1.0.0',

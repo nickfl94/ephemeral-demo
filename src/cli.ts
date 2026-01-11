@@ -25,7 +25,7 @@ program
   .description('Create a new ephemeral environment')
   .option('-b, --branch <branch>', 'Git branch name for the environment')
   .option('-t, --template <template>', 'Environment template (webapp|api|fullstack|demo)', 'demo')
-  .option('-r, --region <region>', 'AWS region', 'us-east-1')
+  .option('-r, --region <region>', 'AWS region', 'ap-southeast-2')
   .option('-i, --instance-type <type>', 'EC2 instance type', 't3.micro')
   .option('--auto-destroy', 'Enable automatic destruction after timeout', true)
   .option('--max-lifetime <hours>', 'Maximum lifetime in hours', '24')

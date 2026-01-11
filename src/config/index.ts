@@ -126,7 +126,7 @@ export class ConfigurationManager {
   initializeConfig(): void {
     this.config = {
       aws: {
-        region: 'us-east-1'
+        region: 'ap-southeast-2'
       },
       defaults: {
         instanceType: 't3.micro',
@@ -349,19 +349,19 @@ export class ConfigurationManager {
       description: 'Default configuration for general use',
       defaults: {
         template: 'demo',
-        region: 'us-east-1',
+        region: 'ap-southeast-2',
         instanceType: 't3.micro',
         maxLifetime: 24,
         costThreshold: 50,
         autoDestroy: true
       },
       aws: {
-        region: 'us-east-1'
+        region: 'ap-southeast-2'
       },
       terraform: {
         stateBackend: {
           bucket: 'ephemeral-demo-terraform-state',
-          region: 'us-east-1',
+          region: 'ap-southeast-2',
           dynamodbTable: 'ephemeral-demo-terraform-locks'
         }
       },

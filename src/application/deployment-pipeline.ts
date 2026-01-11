@@ -16,7 +16,7 @@ export class DeploymentPipeline {
   private readonly healthChecker: HealthChecker;
   private readonly urlGenerator: URLGenerator;
 
-  constructor(ecrRegistry: string, region: string = 'us-east-1') {
+  constructor(ecrRegistry: string, region: string = 'ap-southeast-2') {
     this.dockerBuilder = new DockerBuilder(ecrRegistry, region);
     this.healthChecker = new HealthChecker();
     this.urlGenerator = new URLGenerator();
