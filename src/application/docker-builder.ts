@@ -43,7 +43,7 @@ export class DockerBuilder {
       const buildCommand = [
         'docker build',
         `-t ${imageTag}`,
-        `-f ${config.docker.dockerfile}`,
+        `-f ${dockerfilePath}`,
         config.docker.buildContext
       ].join(' ');
 
