@@ -45,6 +45,9 @@ coverage/
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+*.tfplan
+terraform.tfvars
+!terraform.tfvars.example
 
 # AWS credentials
 .aws/

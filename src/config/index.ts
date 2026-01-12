@@ -136,7 +136,7 @@ export class ConfigurationManager {
       terraform: {
         stateBackend: {
           bucket: 'ephemeral-demo-terraform-state',
-          region: 'us-east-1',
+          region: 'ap-southeast-2',
           dynamodbTable: 'ephemeral-demo-terraform-locks'
         }
       }
@@ -378,19 +378,19 @@ export class ConfigurationManager {
       description: 'Development environment with extended lifetime and debug settings',
       defaults: {
         template: 'webapp',
-        region: 'us-east-1',
+        region: 'ap-southeast-2',
         instanceType: 't3.small',
         maxLifetime: 72, // 3 days for development
         costThreshold: 100,
         autoDestroy: true
       },
       aws: {
-        region: 'us-east-1'
+        region: 'ap-southeast-2'
       },
       terraform: {
         stateBackend: {
           bucket: 'ephemeral-demo-dev-terraform-state',
-          region: 'us-east-1',
+          region: 'ap-southeast-2',
           dynamodbTable: 'ephemeral-demo-dev-terraform-locks'
         }
       },
@@ -408,19 +408,19 @@ export class ConfigurationManager {
       description: 'Optimized for live demonstrations with fast provisioning',
       defaults: {
         template: 'webapp',
-        region: 'us-east-1',
+        region: 'ap-southeast-2',
         instanceType: 't3.micro',
         maxLifetime: 4, // Short lifetime for demos
         costThreshold: 25,
         autoDestroy: true
       },
       aws: {
-        region: 'us-east-1'
+        region: 'ap-southeast-2'
       },
       terraform: {
         stateBackend: {
           bucket: 'ephemeral-demo-demo-terraform-state',
-          region: 'us-east-1',
+          region: 'ap-southeast-2',
           dynamodbTable: 'ephemeral-demo-demo-terraform-locks'
         }
       },
@@ -439,19 +439,19 @@ export class ConfigurationManager {
       description: 'Production-like environment for final testing',
       defaults: {
         template: 'fullstack',
-        region: 'us-east-1',
+        region: 'ap-southeast-2',
         instanceType: 't3.medium',
         maxLifetime: 48,
         costThreshold: 200,
         autoDestroy: true
       },
       aws: {
-        region: 'us-east-1'
+        region: 'ap-southeast-2'
       },
       terraform: {
         stateBackend: {
           bucket: 'ephemeral-demo-prod-terraform-state',
-          region: 'us-east-1',
+          region: 'ap-southeast-2',
           dynamodbTable: 'ephemeral-demo-prod-terraform-locks'
         }
       },

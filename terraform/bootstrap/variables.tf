@@ -13,7 +13,7 @@ variable "dynamodb_table_name" {
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
-  default     = "us-east-1"
+  default     = "ap-southeast-2"
 }
 
 variable "aws_profile" {

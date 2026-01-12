@@ -3,5 +3,5 @@
 
 state_bucket_name    = "enigma-global-ephemeral-terraform-state-2025"
 dynamodb_table_name  = "enigma-global-ephemeral-terraform-locks"
-aws_region          = "us-east-1"
+aws_region          = "ap-southeast-2"
 aws_profile         = "default"

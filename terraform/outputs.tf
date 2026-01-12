@@ -24,3 +24,19 @@ output "data_bucket_name" {
   description = "Name of the data S3 bucket"
   value       = module.storage.data_bucket_name
 }
+
+# Compute outputs
+output "load_balancer_dns_name" {
+  description = "DNS name of the load balancer"
+  value       = module.compute.load_balancer_dns_name
+}
+
+output "application_url" {
+  description = "URL to access the application"
+  value       = module.compute.application_url
+}
+
+output "autoscaling_group_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = module.compute.autoscaling_group_name
+}

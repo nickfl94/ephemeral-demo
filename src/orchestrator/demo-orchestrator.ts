@@ -3,7 +3,7 @@
  * Provides a unified interface for the entire ephemeral deployment demo system
  */
 
-import { EnvironmentConfig, EnvironmentState, CommandResult, DemoConfig } from '../types';
+import { EnvironmentConfig, EnvironmentState, CommandResult, DemoConfig, TerraformResource } from '../types';
 import { ConfigurationManager } from '../config';
 import { EnvironmentLifecycleManager } from '../environment/lifecycle-manager';
 import { EnvironmentStateTracker } from '../environment/state-tracker';
@@ -162,10 +162,9 @@ export class DemoOrchestrator {
       spinner.text = 'Creating environment infrastructure...';
       const environment = await this.lifecycleManager.createEnvironment(envConfig);
 
-      // TODO: This will integrate with Terraform orchestration in future tasks
-      // For now, we'll simulate infrastructure provisioning
+      // Provision real AWS infrastructure using Terraform
       spinner.text = 'Provisioning AWS infrastructure...';
-      await this.simulateInfrastructureProvisioning(environment);
+      await this.provisionRealInfrastructure(environment, envConfig);
 
       // Deploy sample application
       spinner.text = 'Deploying sample application...';
@@ -460,7 +459,126 @@ export class DemoOrchestrator {
   }
 
   /**
-   * Simulate infrastructure provisioning (placeholder for Terraform integration)
+   * Provision real AWS infrastructure using the working deployment script
+   */
+  private async provisionRealInfrastructure(environment: EnvironmentState, envConfig: EnvironmentConfig): Promise<void> {
+    const { execSync } = require('child_process');
+    const path = require('path');
+    
+    console.log(`Provisioning real infrastructure for ${environment.name}`);
+    
+    try {
+      // Set environment variables for the deployment script
+      const deploymentEnv = {
+        ...process.env,
+        ENVIRONMENT_NAME: environment.name,
+        BRANCH_NAME: envConfig.branch || 'main',
+        AWS_REGION: envConfig.region,
+        APP_VERSION: envConfig.version || '1.0.0',
+        BUILD_NUMBER: process.env.BUILD_NUMBER || Date.now().toString(),
+        GIT_COMMIT: process.env.GIT_COMMIT || 'unknown',
+        AWS_PROFILE: process.env.AWS_PROFILE || 'nick_fletcher-911167929263'
+      };
+
+      console.log(`Using deployment configuration:
+        Environment: ${deploymentEnv.ENVIRONMENT_NAME}
+        Branch: ${deploymentEnv.BRANCH_NAME}
+        Region: ${deploymentEnv.AWS_REGION}
+        AWS Profile: ${deploymentEnv.AWS_PROFILE}`);
+
+      // Run the working deployment script
+      console.log('Running deployment script...');
+      const deployOutput = execSync('./deploy-infrastructure.sh deploy', { 
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: deploymentEnv,
+        stdio: 'pipe'
+      });
+
+      console.log('Deployment script output:', deployOutput);
+
+      // Get Terraform outputs to extract infrastructure details
+      const terraformDir = path.join(process.cwd(), 'terraform');
+      let outputs = {};
+      
+      try {
+        const outputsJson = execSync('terraform output -json', { 
+          cwd: terraformDir, 
+          encoding: 'utf8',
+          env: deploymentEnv
+        });
+        outputs = JSON.parse(outputsJson);
+        console.log('Retrieved Terraform outputs:', outputs);
+      } catch (error) {
+        console.warn('Could not retrieve Terraform outputs:', error);
+      }
+      
+      // Extract resource information from outputs
+      const resources: TerraformResource[] = [];
+      
+      if (outputs && typeof outputs === 'object') {
+        // Add VPC resource if available
+        if ((outputs as any).vpc_id?.value) {
+          resources.push({
+            address: 'aws_vpc.main',
+            type: 'aws_vpc',
+            name: 'main',
+            attributes: {
+              id: (outputs as any).vpc_id.value,
+              cidr_block: (outputs as any).vpc_cidr?.value || '10.0.0.0/16'
+            }
+          });
+        }
+
+        // Add Load Balancer resource if available
+        if ((outputs as any).load_balancer_dns_name?.value) {
+          resources.push({
+            address: 'aws_lb.main',
+            type: 'aws_lb',
+            name: 'main',
+            attributes: {
+              id: (outputs as any).load_balancer_id?.value || 'unknown',
+              dns_name: (outputs as any).load_balancer_dns_name.value,
+              arn: (outputs as any).load_balancer_arn?.value || 'unknown'
+            }
+          });
+        }
+
+        // Add Auto Scaling Group resource if available
+        if ((outputs as any).autoscaling_group_name?.value) {
+          resources.push({
+            address: 'aws_autoscaling_group.main',
+            type: 'aws_autoscaling_group',
+            name: 'main',
+            attributes: {
+              id: (outputs as any).autoscaling_group_name.value,
+              name: (outputs as any).autoscaling_group_name.value
+            }
+          });
+        }
+      }
+
+      // Update environment with real resources
+      await this.stateTracker.updateEnvironment(environment.id, {
+        resources: resources,
+        metadata: {
+          ...(environment.metadata || {}),
+          terraformOutputs: outputs,
+          provisionedAt: new Date().toISOString(),
+          deploymentMethod: 'deploy-infrastructure-script'
+        }
+      });
+
+      console.log(`Infrastructure provisioned successfully for ${environment.name}`);
+      
+    } catch (error) {
+      console.error(`Failed to provision infrastructure for ${environment.name}:`, error);
+      throw new Error(`Infrastructure provisioning failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Simulate infrastructure provisioning (fallback method)
    */
   private async simulateInfrastructureProvisioning(environment: EnvironmentState): Promise<void> {
     // TODO: This will be replaced with actual Terraform orchestration
@@ -500,33 +618,74 @@ export class DemoOrchestrator {
    * Deploy sample application to environment
    */
   private async deploySampleApplication(environment: EnvironmentState, envConfig: EnvironmentConfig): Promise<any> {
-    // Get application configuration based on environment template
-    const appConfig = this.applicationFactory.createApplicationFromTemplate(
-      envConfig.template,
-      environment.name,
-      envConfig,
-      {
-        version: '1.0.0'
+    try {
+      // Get Terraform outputs to find real infrastructure details
+      const terraformOutputs = environment.metadata?.terraformOutputs;
+      
+      if (!terraformOutputs) {
+        throw new Error('No Terraform outputs found - infrastructure may not be provisioned');
       }
-    );
 
-    // Create deployment target (simulated)
-    const deploymentTarget: DeploymentTarget = {
-      type: 'ec2',
-      region: envConfig.region,
-      config: {
-        instanceId: 'i-1234567890abcdef0', // Simulated instance ID
-        keyName: 'ephemeral-demo-key',
-        securityGroups: ['sg-1234567890abcdef0']
-      }
-    };
+      // Get application configuration based on environment template
+      const appConfig = this.applicationFactory.createApplicationFromTemplate(
+        envConfig.template,
+        environment.name,
+        envConfig,
+        {
+          version: '1.0.0'
+        }
+      );
 
-    // Deploy application
-    return await this.deploymentPipeline.deployApplication(
-      appConfig,
-      deploymentTarget,
-      environment
-    );
+      // Create deployment target using real infrastructure
+      const deploymentTarget: DeploymentTarget = {
+        type: 'ec2',
+        region: envConfig.region,
+        config: {
+          // Use real infrastructure details from Terraform outputs
+          loadBalancerDns: terraformOutputs.load_balancer_dns?.value,
+          autoscalingGroupName: terraformOutputs.autoscaling_group_name?.value,
+          vpcId: terraformOutputs.vpc_id?.value,
+          securityGroups: [terraformOutputs.web_security_group_id?.value].filter(Boolean)
+        }
+      };
+
+      // Deploy application using real infrastructure
+      const deploymentResult = await this.deploymentPipeline.deployApplication(
+        appConfig,
+        deploymentTarget,
+        environment
+      );
+
+      // Generate real URLs based on infrastructure
+      const applicationUrl = terraformOutputs.load_balancer_dns?.value 
+        ? `http://${terraformOutputs.load_balancer_dns.value}`
+        : `http://${terraformOutputs.instance_public_ip?.value || 'unknown'}:3000`;
+
+      const healthUrl = `${applicationUrl}/health`;
+
+      return {
+        success: true,
+        urls: {
+          application: applicationUrl,
+          health: healthUrl,
+          metrics: `${applicationUrl}/api/metrics`,
+          loadTest: `${applicationUrl}/api/load-test`
+        },
+        infrastructure: {
+          loadBalancer: terraformOutputs.load_balancer_dns?.value,
+          autoscalingGroup: terraformOutputs.autoscaling_group_name?.value,
+          vpc: terraformOutputs.vpc_id?.value
+        }
+      };
+
+    } catch (error) {
+      console.error('Failed to deploy sample application:', error);
+      return {
+        success: false,
+        message: `Application deployment failed: ${(error as Error).message}`,
+        error: (error as Error).message
+      };
+    }
   }
 
   /**

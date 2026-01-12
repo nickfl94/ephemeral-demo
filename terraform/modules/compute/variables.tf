@@ -106,3 +106,32 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+variable "branch_name" {
+  description = "Git branch name for this environment"
+  type        = string
+  default     = "main"
+}
+
+variable "aws_region" {
+  description = "AWS region for this environment"
+  type        = string
+  default     = "ap-southeast-2"
+}
+
+variable "app_version" {
+  description = "Application version"
+  type        = string
+  default     = "1.0.0"
+}
+
+variable "build_number" {
+  description = "Build number"
+  type        = string
+  default     = "local"
+}
+
+variable "git_commit" {
+  description = "Git commit hash"
+  type        = string
+  default     = "unknown"
+}

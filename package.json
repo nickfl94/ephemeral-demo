@@ -15,7 +15,9 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
-    "format:check": "prettier --check src/**/*.ts"
+    "format:check": "prettier --check src/**/*.ts",
+    "clean": "rm -rf dist/ terraform/*.tfplan terraform/terraform.tfvars",
+    "demo": "npm run build && node dist/cli.js"
   },
   "keywords": [
     "terraform",

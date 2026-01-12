@@ -134,6 +134,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "app_assets" {
     id     = "ephemeral_lifecycle"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     # Delete objects after the environment lifetime
     expiration {
       days = var.object_expiration_days
@@ -160,6 +164,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "app_data" {
   rule {
     id     = "ephemeral_data_lifecycle"
     status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
 
     # Delete objects after the environment lifetime
     expiration {

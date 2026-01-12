@@ -95,11 +95,6 @@ resource "aws_cloudwatch_dashboard" "main" {
       }
     ]
   })
-
-  tags = merge(var.tags, {
-    Name = "${var.environment_name}-dashboard"
-    Type = "cloudwatch-dashboard"
-  })
 }
 
 # CloudWatch Alarm for high CPU utilization
@@ -148,7 +143,7 @@ resource "aws_cloudwatch_metric_alarm" "high_memory" {
 
 # CloudWatch Alarm for application response time
 resource "aws_cloudwatch_metric_alarm" "high_response_time" {
-  count = var.load_balancer_arn_suffix != null ? 1 : 0
+  count = var.enable_load_balancer ? 1 : 0
 
   alarm_name          = "${var.environment_name}-high-response-time"
   comparison_operator = "GreaterThanThreshold"
@@ -173,7 +168,7 @@ resource "aws_cloudwatch_metric_alarm" "high_response_time" {
 
 # CloudWatch Alarm for application errors
 resource "aws_cloudwatch_metric_alarm" "high_error_rate" {
-  count = var.load_balancer_arn_suffix != null ? 1 : 0
+  count = var.enable_load_balancer ? 1 : 0
 
   alarm_name          = "${var.environment_name}-high-error-rate"
   comparison_operator = "GreaterThanThreshold"
@@ -198,7 +193,7 @@ resource "aws_cloudwatch_metric_alarm" "high_error_rate" {
 
 # CloudWatch Alarm for low healthy targets
 resource "aws_cloudwatch_metric_alarm" "low_healthy_targets" {
-  count = var.target_group_arn_suffix != null ? 1 : 0
+  count = var.enable_load_balancer ? 1 : 0
 
   alarm_name          = "${var.environment_name}-low-healthy-targets"
   comparison_operator = "LessThanThreshold"
@@ -255,11 +250,6 @@ fields @timestamp, @message
 | stats count() by bin(5m)
 | sort @timestamp desc
 EOF
-
-  tags = merge(var.tags, {
-    Name = "${var.environment_name}-error-analysis-query"
-    Type = "cloudwatch-query"
-  })
 }
 
 resource "aws_cloudwatch_query_definition" "performance_analysis" {
@@ -274,11 +264,6 @@ fields @timestamp, @message
 | stats avg(response_time), max(response_time), min(response_time) by bin(5m)
 | sort @timestamp desc
 EOF
-
-  tags = merge(var.tags, {
-    Name = "${var.environment_name}-performance-analysis-query"
-    Type = "cloudwatch-query"
-  })
 }
 
 # CloudWatch Composite Alarm for overall health
@@ -287,19 +272,14 @@ resource "aws_cloudwatch_composite_alarm" "environment_health" {
   alarm_description = "Composite alarm for overall environment health"
 
   alarm_rule = join(" OR ", compact([
-    aws_cloudwatch_metric_alarm.high_cpu.alarm_name,
-    var.enable_custom_metrics ? aws_cloudwatch_metric_alarm.high_memory[0].alarm_name : null,
-    var.load_balancer_arn_suffix != null ? aws_cloudwatch_metric_alarm.high_response_time[0].alarm_name : null,
-    var.load_balancer_arn_suffix != null ? aws_cloudwatch_metric_alarm.high_error_rate[0].alarm_name : null,
-    var.target_group_arn_suffix != null ? aws_cloudwatch_metric_alarm.low_healthy_targets[0].alarm_name : null
+    "ALARM(${aws_cloudwatch_metric_alarm.high_cpu.alarm_name})",
+    var.enable_custom_metrics ? "ALARM(${aws_cloudwatch_metric_alarm.high_memory[0].alarm_name})" : null,
+    var.enable_load_balancer ? "ALARM(${aws_cloudwatch_metric_alarm.high_response_time[0].alarm_name})" : null,
+    var.enable_load_balancer ? "ALARM(${aws_cloudwatch_metric_alarm.high_error_rate[0].alarm_name})" : null,
+    var.enable_load_balancer ? "ALARM(${aws_cloudwatch_metric_alarm.low_healthy_targets[0].alarm_name})" : null
   ]))
 
   alarm_actions = var.alarm_actions
-
-  tags = merge(var.tags, {
-    Name = "${var.environment_name}-composite-alarm"
-    Type = "cloudwatch-composite-alarm"
-  })
 }
 
 # CloudWatch Metric Filter for application errors

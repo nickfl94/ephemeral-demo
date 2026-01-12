@@ -5,7 +5,7 @@ const morgan = require('morgan');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3001; // Use 3001 for API server in development
+const PORT = process.env.PORT || 3000; // Use 3000 for consistency with infrastructure
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Environment information

@@ -85,6 +85,17 @@ resource "aws_iam_role_policy" "ec2_policy" {
           "s3:PutObject"
         ]
         Resource = "${var.s3_bucket_arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:UpdateInstanceInformation",
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -179,9 +190,15 @@ resource "aws_launch_template" "main" {
   }
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    application_port = var.application_port
+    port             = var.application_port
     s3_bucket_name   = var.s3_bucket_name
     environment_name = var.environment_name
+    branch_name      = var.branch_name
+    aws_region       = var.aws_region
+    instance_type    = var.instance_type
+    app_version      = var.app_version
+    build_number     = var.build_number
+    git_commit       = var.git_commit
   }))
 
   tag_specifications {
@@ -283,11 +300,6 @@ resource "aws_ecs_service" "main" {
   cluster         = aws_ecs_cluster.main[0].id
   task_definition = var.ecs_task_definition_arn
   desired_count   = var.desired_instances
-
-  deployment_configuration {
-    maximum_percent         = 200
-    minimum_healthy_percent = 50
-  }
 
   network_configuration {
     subnets          = var.private_subnet_ids
