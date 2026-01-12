@@ -134,14 +134,14 @@ jobs:
           SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
           
           # Truncate branch name to keep total length manageable (ALB names have 32 char limit)
-          # Format: env-{short-branch}-{timestamp}
-          SHORT_BRANCH=$(echo "$SANITIZED_BRANCH" | cut -c1-12)  # Max 12 chars for branch
-          TIMESTAMP=$(date +%s | tail -c 6)  # Last 5 digits of timestamp
+          # Format: env-{short-branch}-{fixed-suffix} for consistency
+          SHORT_BRANCH=$(echo "$SANITIZED_BRANCH" | cut -c1-15)  # Max 15 chars for branch
           
           echo "Provisioning environment for branch: $BRANCH_NAME (sanitized: $SANITIZED_BRANCH, short: $SHORT_BRANCH)"
           
-          # Set environment variables for deployment
-          export ENVIRONMENT_NAME="env-${SHORT_BRANCH}-${TIMESTAMP}"
+          # Use a consistent environment name for the same branch to avoid recreating resources
+          # This allows Terraform to update existing resources instead of replacing everything
+          export ENVIRONMENT_NAME="env-${SHORT_BRANCH}"
           export BRANCH_NAME="$BRANCH_NAME"
           export AWS_REGION="${{ env.AWS_REGION }}"
           export APP_VERSION="1.0.0"
@@ -167,14 +167,23 @@ jobs:
           
           # Try to provision using CLI (which will use the updated orchestrator)
           echo "Starting environment provisioning via CLI..."
-          RESULT=$(npm run start -- provision \
+          
+          # Add timeout to prevent hanging (5 minutes max for CLI)
+          timeout 300 npm run start -- provision \
             --branch "$BRANCH_NAME" \
             --template demo \
             --region ${{ env.AWS_REGION }} \
             --instance-type t3.micro \
             --max-lifetime 4 \
             --cost-threshold 25 \
-            --output json 2>&1 || echo '{"error": "provisioning failed"}')
+            --output json > cli_result.json 2>&1 || CLI_FAILED=true
+          
+          if [ "$CLI_FAILED" = "true" ] || [ ! -f "cli_result.json" ]; then
+            echo "CLI provisioning failed or timed out - using fallback"
+            RESULT='{"error": "provisioning failed"}'
+          else
+            RESULT=$(cat cli_result.json)
+          fi
           
           echo "Provisioning result: $RESULT"
           echo "Checking if result contains valid JSON..."

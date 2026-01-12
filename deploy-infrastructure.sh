@@ -45,11 +45,25 @@ command_exists() {
 create_terraform_vars() {
     print_status "Creating terraform.tfvars with deployment configuration..."
     
+    # Determine AWS profile setting based on environment
+    local aws_profile_setting=""
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+        # In CI/CD, don't use any profile (use direct credentials)
+        aws_profile_setting='aws_profile = ""'
+    elif [ -n "${AWS_PROFILE}" ]; then
+        # In local development with profile set
+        aws_profile_setting="aws_profile = \"${AWS_PROFILE}\""
+    else
+        # In local development without profile (use default)
+        aws_profile_setting='aws_profile = ""'
+    fi
+    
     # Write to current directory (should be terraform directory when called)
     cat > terraform.tfvars << EOF
 # Environment Configuration
 environment_name = "$ENVIRONMENT_NAME"
 aws_region = "$AWS_REGION"
+$aws_profile_setting
 
 # Application Configuration  
 branch_name = "$BRANCH_NAME"
@@ -94,6 +108,7 @@ common_tags = {
 EOF
 
     print_success "Created terraform.tfvars with configuration for environment: $ENVIRONMENT_NAME"
+    print_status "AWS Profile setting: $aws_profile_setting"
 }
 
 # Check prerequisites

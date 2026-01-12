@@ -11,6 +11,12 @@ variable "aws_region" {
   default     = "ap-southeast-2"
 }
 
+variable "aws_profile" {
+  description = "AWS profile to use for authentication (optional)"
+  type        = string
+  default     = ""
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string

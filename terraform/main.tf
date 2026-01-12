@@ -28,7 +28,9 @@ terraform {
 # Configure AWS provider
 provider "aws" {
   region = var.aws_region
-  # Profile will be determined by AWS_PROFILE environment variable or default AWS CLI profile
+  # Use profile from variable, which can be overridden by TF_VAR_aws_profile
+  # In CI/CD environments, this will be empty and use default credentials
+  profile = var.aws_profile != "" ? var.aws_profile : null
   
   default_tags {
     tags = {

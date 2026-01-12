@@ -93,9 +93,13 @@ export class DemoOrchestrator {
       spinner.text = 'Initializing environment state tracker...';
       await this.stateTracker.initialize();
 
-      // Initialize cleanup scheduler
-      spinner.text = 'Starting cleanup scheduler...';
-      await this.cleanupScheduler.start();
+      // Initialize cleanup scheduler (skip in CI/CD environments)
+      if (process.env.CI !== 'true' && process.env.GITHUB_ACTIONS !== 'true') {
+        spinner.text = 'Starting cleanup scheduler...';
+        await this.cleanupScheduler.start();
+      } else {
+        console.log('Skipping cleanup scheduler in CI/CD environment');
+      }
 
       // Initialize Git integration if enabled
       if (this.config.enableGitIntegration && this.config.gitConfig) {
@@ -469,7 +473,7 @@ export class DemoOrchestrator {
     
     try {
       // Set environment variables for the deployment script
-      const deploymentEnv = {
+      const deploymentEnv: Record<string, string | undefined> = {
         ...process.env,
         ENVIRONMENT_NAME: environment.name,
         BRANCH_NAME: envConfig.branch || 'main',
@@ -477,17 +481,29 @@ export class DemoOrchestrator {
         APP_VERSION: envConfig.version || '1.0.0',
         BUILD_NUMBER: process.env.BUILD_NUMBER || Date.now().toString(),
         GIT_COMMIT: process.env.GIT_COMMIT || 'unknown',
-        AWS_PROFILE: process.env.AWS_PROFILE || undefined,
-        TF_VAR_aws_profile: process.env.TF_VAR_aws_profile || process.env.AWS_PROFILE || undefined,
         CI: process.env.CI || undefined,
         GITHUB_ACTIONS: process.env.GITHUB_ACTIONS || undefined
       };
+
+      // Handle AWS profile configuration - clear profile in CI/CD environments
+      if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') {
+        // In CI/CD, use direct AWS credentials (no profile)
+        deploymentEnv.AWS_PROFILE = '';
+        deploymentEnv.TF_VAR_aws_profile = '';
+        // Remove any existing profile environment variables
+        delete deploymentEnv.AWS_PROFILE;
+        delete deploymentEnv.TF_VAR_aws_profile;
+      } else {
+        // In local development, use the configured profile
+        deploymentEnv.AWS_PROFILE = process.env.AWS_PROFILE || undefined;
+        deploymentEnv.TF_VAR_aws_profile = process.env.TF_VAR_aws_profile || process.env.AWS_PROFILE || undefined;
+      }
 
       console.log(`Using deployment configuration:
         Environment: ${deploymentEnv.ENVIRONMENT_NAME}
         Branch: ${deploymentEnv.BRANCH_NAME}
         Region: ${deploymentEnv.AWS_REGION}
-        AWS Profile: ${deploymentEnv.AWS_PROFILE || 'default credentials'}`);
+        AWS Profile: ${deploymentEnv.AWS_PROFILE || 'default credentials (no profile)'}`);
 
       // Run the working deployment script
       console.log('Running deployment script...');
