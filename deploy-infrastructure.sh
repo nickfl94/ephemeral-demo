@@ -125,31 +125,68 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Check AWS credentials and show current identity
+    # Check AWS credentials - handle both CI/CD and local environments
     print_status "Checking AWS credentials..."
-    if ! aws sts get-caller-identity >/dev/null 2>&1; then
-        print_error "AWS credentials not configured. Please run 'aws configure' first."
-        exit 1
+    
+    # In CI/CD environments, credentials come from environment variables
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+        print_status "Running in CI/CD environment - checking environment variables..."
+        
+        if [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ]; then
+            print_error "AWS credentials not found in environment variables."
+            print_error "Required: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+            print_error "Current environment:"
+            echo "  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:+[SET]}"
+            echo "  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:+[SET]}"
+            echo "  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-[NOT SET]}"
+            echo "  AWS_REGION: ${AWS_REGION:-[NOT SET]}"
+            exit 1
+        fi
+        
+        # Set AWS region if not already set
+        if [ -z "${AWS_DEFAULT_REGION}" ]; then
+            export AWS_DEFAULT_REGION="${AWS_REGION}"
+            print_status "Set AWS_DEFAULT_REGION to: ${AWS_REGION}"
+        fi
+        
+        print_status "AWS credentials found in environment variables"
+        print_status "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:+[SET]}"
+        print_status "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:+[SET]}"
+        print_status "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}"
+    else
+        # In local development, check AWS CLI configuration
+        if ! aws sts get-caller-identity >/dev/null 2>&1; then
+            print_error "AWS credentials not configured. Please run 'aws configure' first."
+            exit 1
+        fi
     fi
     
-    # Show current AWS identity
-    local aws_identity=$(aws sts get-caller-identity)
-    local account_id=$(echo "$aws_identity" | jq -r '.Account' 2>/dev/null || echo "unknown")
-    local user_arn=$(echo "$aws_identity" | jq -r '.Arn' 2>/dev/null || echo "unknown")
-    
-    print_status "Current AWS Identity:"
-    echo "  Account ID: $account_id"
-    echo "  User ARN: $user_arn"
-    echo "  AWS Profile: ${AWS_PROFILE:-default}"
-    echo "  AWS Region: ${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo 'not set')}"
-    
-    # Verify we're using the correct account
-    if [ "$account_id" != "911167929263" ]; then
-        print_error "Wrong AWS account! Expected: 911167929263, Got: $account_id"
-        print_error "Please switch to the correct AWS profile:"
-        print_error "  export AWS_PROFILE=your-profile-for-911167929263"
-        print_error "  or"
-        print_error "  aws configure --profile your-profile-name"
+    # Try to get AWS identity (works for both credential methods)
+    print_status "Verifying AWS identity..."
+    local aws_identity
+    if aws_identity=$(aws sts get-caller-identity 2>/dev/null); then
+        local account_id=$(echo "$aws_identity" | jq -r '.Account' 2>/dev/null || echo "unknown")
+        local user_arn=$(echo "$aws_identity" | jq -r '.Arn' 2>/dev/null || echo "unknown")
+        
+        print_status "Current AWS Identity:"
+        echo "  Account ID: $account_id"
+        echo "  User ARN: $user_arn"
+        echo "  AWS Profile: ${AWS_PROFILE:-default}"
+        echo "  AWS Region: ${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo $AWS_REGION)}"
+        
+        # Verify we're using the correct account
+        if [ "$account_id" != "911167929263" ]; then
+            print_error "Wrong AWS account! Expected: 911167929263, Got: $account_id"
+            if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+                print_error "Please check your GitHub Actions AWS credentials configuration"
+            else
+                print_error "Please switch to the correct AWS profile:"
+                print_error "  export AWS_PROFILE=your-profile-for-911167929263"
+            fi
+            exit 1
+        fi
+    else
+        print_error "Failed to verify AWS identity. Please check your AWS credentials."
         exit 1
     fi
     

@@ -87,6 +87,14 @@ jobs:
       - name: Verify AWS credentials
         run: |
           echo "Verifying AWS credentials..."
+          echo "Environment variables check:"
+          echo "AWS_ACCESS_KEY_ID is set: ${AWS_ACCESS_KEY_ID:+yes}"
+          echo "AWS_SECRET_ACCESS_KEY is set: ${AWS_SECRET_ACCESS_KEY:+yes}"
+          echo "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-not set}"
+          echo "AWS_REGION: ${AWS_REGION:-not set}"
+          
+          echo "Testing AWS CLI..."
+          aws --version
           aws sts get-caller-identity
           
           # Check if we're using the correct AWS account
