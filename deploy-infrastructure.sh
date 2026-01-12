@@ -170,11 +170,16 @@ deploy_bootstrap() {
     print_warning "- S3 bucket for Terraform state"
     print_warning "- DynamoDB table for state locking"
     
-    read -p "Continue? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Bootstrap deployment cancelled"
-        exit 0
+    # Skip interactive prompt in CI/CD environments
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ] || [ "${NON_INTERACTIVE}" = "true" ]; then
+        print_status "Running in CI/CD mode - auto-approving bootstrap deployment"
+    else
+        read -p "Continue? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status "Bootstrap deployment cancelled"
+            exit 0
+        fi
     fi
     
     terraform apply bootstrap.tfplan
@@ -230,11 +235,16 @@ deploy_main() {
     print_warning "  Region: $AWS_REGION"
     print_warning "  App Version: $APP_VERSION"
     
-    read -p "Continue? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Main infrastructure deployment cancelled"
-        exit 0
+    # Skip interactive prompt in CI/CD environments
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ] || [ "${NON_INTERACTIVE}" = "true" ]; then
+        print_status "Running in CI/CD mode - auto-approving main infrastructure deployment"
+    else
+        read -p "Continue? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status "Main infrastructure deployment cancelled"
+            exit 0
+        fi
     fi
     
     # Apply the plan
@@ -335,10 +345,15 @@ destroy_infrastructure() {
     print_warning "- All other AWS resources"
     echo
     
-    read -p "Are you sure you want to destroy everything? Type 'yes' to confirm: " -r
-    if [[ ! $REPLY == "yes" ]]; then
-        print_status "Destruction cancelled"
-        exit 0
+    # Skip interactive prompt in CI/CD environments
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ] || [ "${NON_INTERACTIVE}" = "true" ]; then
+        print_status "Running in CI/CD mode - auto-approving destruction"
+    else
+        read -p "Are you sure you want to destroy everything? Type 'yes' to confirm: " -r
+        if [[ ! $REPLY == "yes" ]]; then
+            print_status "Destruction cancelled"
+            exit 0
+        fi
     fi
     
     print_status "Destroying main infrastructure..."

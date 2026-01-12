@@ -478,7 +478,9 @@ export class DemoOrchestrator {
         BUILD_NUMBER: process.env.BUILD_NUMBER || Date.now().toString(),
         GIT_COMMIT: process.env.GIT_COMMIT || 'unknown',
         AWS_PROFILE: process.env.AWS_PROFILE || undefined,
-        TF_VAR_aws_profile: process.env.TF_VAR_aws_profile || process.env.AWS_PROFILE || undefined
+        TF_VAR_aws_profile: process.env.TF_VAR_aws_profile || process.env.AWS_PROFILE || undefined,
+        CI: process.env.CI || undefined,
+        GITHUB_ACTIONS: process.env.GITHUB_ACTIONS || undefined
       };
 
       console.log(`Using deployment configuration:

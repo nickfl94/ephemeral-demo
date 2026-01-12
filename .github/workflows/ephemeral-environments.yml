@@ -145,6 +145,9 @@ jobs:
           # Override AWS profile for CI/CD - use direct credentials instead of profile
           export AWS_PROFILE=""
           export TF_VAR_aws_profile=""
+          # Set CI flags for non-interactive deployment
+          export CI=true
+          export GITHUB_ACTIONS=true
           
           echo "Deployment configuration:"
           echo "  Environment: $ENVIRONMENT_NAME"
