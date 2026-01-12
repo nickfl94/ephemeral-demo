@@ -166,13 +166,14 @@ jobs:
             --output json 2>&1 || echo '{"error": "provisioning failed"}')
           
           echo "Provisioning result: $RESULT"
+          echo "Checking if result contains valid JSON..."
           
           # Try to extract environment details (handle both success and failure)
           if echo "$RESULT" | jq -e '.data.environmentId' > /dev/null 2>&1; then
             ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId')
             ENV_URL=$(echo "$RESULT" | jq -r '.data.urls.application // "http://pending-deployment"')
-            echo "Successfully provisioned environment: $ENV_ID"
-            echo "Application URL: $ENV_URL"
+            echo "Successfully provisioned environment via CLI: $ENV_ID"
+            echo "Application URL from CLI: $ENV_URL"
           else
             # If CLI fails, fall back to direct deployment script
             echo "CLI provisioning failed, trying direct deployment script..."
@@ -185,16 +186,25 @@ jobs:
             
             # Get outputs from Terraform
             cd terraform
-            ENV_URL=$(terraform output -raw application_url 2>/dev/null || echo "http://deployment-pending")
-            ALB_DNS=$(terraform output -raw load_balancer_dns_name 2>/dev/null || echo "unknown")
+            APPLICATION_URL=$(terraform output -raw application_url 2>/dev/null || echo "")
+            ALB_DNS=$(terraform output -raw load_balancer_dns_name 2>/dev/null || echo "")
             cd ..
             
             ENV_ID="$ENVIRONMENT_NAME"
-            ENV_URL="http://$ALB_DNS"
+            
+            # Use the application_url output first, fallback to ALB DNS
+            if [ -n "$APPLICATION_URL" ] && [ "$APPLICATION_URL" != "" ]; then
+              ENV_URL="$APPLICATION_URL"
+            elif [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "" ]; then
+              ENV_URL="http://$ALB_DNS"
+            else
+              ENV_URL="http://deployment-pending"
+            fi
             
             echo "Direct deployment completed:"
             echo "Environment ID: $ENV_ID"
             echo "Application URL: $ENV_URL"
+            echo "ALB DNS: $ALB_DNS"
           fi
           
           echo "environment-id=$ENV_ID" >> $GITHUB_OUTPUT

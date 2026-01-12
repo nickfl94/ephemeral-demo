@@ -657,8 +657,10 @@ export class DemoOrchestrator {
       );
 
       // Generate real URLs based on infrastructure
-      const applicationUrl = terraformOutputs.load_balancer_dns?.value 
-        ? `http://${terraformOutputs.load_balancer_dns.value}`
+      const applicationUrl = terraformOutputs.application_url?.value 
+        ? terraformOutputs.application_url.value
+        : terraformOutputs.load_balancer_dns_name?.value 
+        ? `http://${terraformOutputs.load_balancer_dns_name.value}`
         : `http://${terraformOutputs.instance_public_ip?.value || 'unknown'}:3000`;
 
       const healthUrl = `${applicationUrl}/health`;
@@ -672,7 +674,7 @@ export class DemoOrchestrator {
           loadTest: `${applicationUrl}/api/load-test`
         },
         infrastructure: {
-          loadBalancer: terraformOutputs.load_balancer_dns?.value,
+          loadBalancer: terraformOutputs.load_balancer_dns_name?.value,
           autoscalingGroup: terraformOutputs.autoscaling_group_name?.value,
           vpc: terraformOutputs.vpc_id?.value
         }
