@@ -143,7 +143,7 @@ check_prerequisites() {
 
 # Function to deploy bootstrap infrastructure
 deploy_bootstrap() {
-    print_status "Deploying bootstrap infrastructure (S3 backend)..."
+    print_status "Checking bootstrap infrastructure (S3 backend)..."
     
     cd terraform/bootstrap
     
@@ -152,6 +152,22 @@ deploy_bootstrap() {
         print_status "Please create terraform.tfvars based on terraform.tfvars.example"
         exit 1
     fi
+    
+    # Get bucket name from terraform.tfvars
+    BUCKET_NAME=$(grep "state_bucket_name" terraform.tfvars | cut -d'"' -f2)
+    TABLE_NAME=$(grep "dynamodb_table_name" terraform.tfvars | cut -d'"' -f2)
+    
+    # Check if S3 bucket already exists and is accessible
+    if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null && aws dynamodb describe-table --table-name "$TABLE_NAME" >/dev/null 2>&1; then
+        print_status "Bootstrap infrastructure already exists and is accessible:"
+        print_status "  S3 bucket: $BUCKET_NAME"
+        print_status "  DynamoDB table: $TABLE_NAME"
+        print_status "Skipping bootstrap deployment"
+        cd ../..
+        return 0
+    fi
+    
+    print_status "Bootstrap infrastructure not found or not accessible - deploying..."
     
     # Verify AWS credentials before bootstrap
     local current_identity=$(aws sts get-caller-identity)
