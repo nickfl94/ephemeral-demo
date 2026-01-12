@@ -133,10 +133,15 @@ jobs:
           BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
           SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
           
-          echo "Provisioning environment for branch: $BRANCH_NAME (sanitized: $SANITIZED_BRANCH)"
+          # Truncate branch name to keep total length manageable (ALB names have 32 char limit)
+          # Format: env-{short-branch}-{timestamp}
+          SHORT_BRANCH=$(echo "$SANITIZED_BRANCH" | cut -c1-12)  # Max 12 chars for branch
+          TIMESTAMP=$(date +%s | tail -c 6)  # Last 5 digits of timestamp
+          
+          echo "Provisioning environment for branch: $BRANCH_NAME (sanitized: $SANITIZED_BRANCH, short: $SHORT_BRANCH)"
           
           # Set environment variables for deployment
-          export ENVIRONMENT_NAME="demo-env-${SANITIZED_BRANCH}-$(date +%s)"
+          export ENVIRONMENT_NAME="env-${SHORT_BRANCH}-${TIMESTAMP}"
           export BRANCH_NAME="$BRANCH_NAME"
           export AWS_REGION="${{ env.AWS_REGION }}"
           export APP_VERSION="1.0.0"

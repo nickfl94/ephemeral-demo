@@ -116,7 +116,8 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 resource "aws_lb" "main" {
   count = var.enable_load_balancer ? 1 : 0
 
-  name               = "${var.environment_name}-alb"
+  # AWS ALB names must be 32 characters or less
+  name               = length("${var.environment_name}-alb") > 32 ? substr("${var.environment_name}-alb", 0, 32) : "${var.environment_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.web_security_group_id]
@@ -134,7 +135,8 @@ resource "aws_lb" "main" {
 resource "aws_lb_target_group" "main" {
   count = var.enable_load_balancer ? 1 : 0
 
-  name     = "${var.environment_name}-tg"
+  # AWS Target Group names must be 32 characters or less
+  name     = length("${var.environment_name}-tg") > 32 ? substr("${var.environment_name}-tg", 0, 32) : "${var.environment_name}-tg"
   port     = var.application_port
   protocol = "HTTP"
   vpc_id   = var.vpc_id
