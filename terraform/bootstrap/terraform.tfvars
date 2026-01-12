@@ -4,4 +4,4 @@
 state_bucket_name    = "enigma-global-ephemeral-terraform-state-2025"
 dynamodb_table_name  = "enigma-global-ephemeral-terraform-locks"
 aws_region          = "ap-southeast-2"
-aws_profile         = "nick_fletcher-911167929263"
+# aws_profile         = ""  # Leave empty to use default AWS credentials

@@ -477,7 +477,8 @@ export class DemoOrchestrator {
         APP_VERSION: envConfig.version || '1.0.0',
         BUILD_NUMBER: process.env.BUILD_NUMBER || Date.now().toString(),
         GIT_COMMIT: process.env.GIT_COMMIT || 'unknown',
-        AWS_PROFILE: process.env.AWS_PROFILE || undefined
+        AWS_PROFILE: process.env.AWS_PROFILE || undefined,
+        TF_VAR_aws_profile: process.env.TF_VAR_aws_profile || process.env.AWS_PROFILE || undefined
       };
 
       console.log(`Using deployment configuration:
