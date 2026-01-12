@@ -11,10 +11,11 @@ terraform {
   }
 }
 
-# Configure AWS provider with profile
+# Configure AWS provider
 provider "aws" {
-  region  = var.aws_region
-  profile = var.aws_profile
+  region = var.aws_region
+  # Profile is optional - will use AWS_PROFILE env var or default credentials
+  profile = var.aws_profile != "" ? var.aws_profile : null
 }
 
 # S3 bucket for Terraform state

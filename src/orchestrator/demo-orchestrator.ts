@@ -477,14 +477,14 @@ export class DemoOrchestrator {
         APP_VERSION: envConfig.version || '1.0.0',
         BUILD_NUMBER: process.env.BUILD_NUMBER || Date.now().toString(),
         GIT_COMMIT: process.env.GIT_COMMIT || 'unknown',
-        AWS_PROFILE: process.env.AWS_PROFILE || 'nick_fletcher-911167929263'
+        AWS_PROFILE: process.env.AWS_PROFILE || undefined
       };
 
       console.log(`Using deployment configuration:
         Environment: ${deploymentEnv.ENVIRONMENT_NAME}
         Branch: ${deploymentEnv.BRANCH_NAME}
         Region: ${deploymentEnv.AWS_REGION}
-        AWS Profile: ${deploymentEnv.AWS_PROFILE}`);
+        AWS Profile: ${deploymentEnv.AWS_PROFILE || 'default credentials'}`);
 
       // Run the working deployment script
       console.log('Running deployment script...');

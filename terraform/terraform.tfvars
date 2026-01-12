@@ -1,12 +1,12 @@
 # Environment Configuration
-environment_name = "demo-env-1768195876"
+environment_name = "demo-env-1768205081"
 aws_region = "ap-southeast-2"
 
 # Application Configuration  
 branch_name = "main"
 app_version = "1.0.0"
-build_number = "1768195876"
-git_commit = "41c5380d5adf635b148783c6185261f0958f4466"
+build_number = "1768205081"
+git_commit = "a5071429f4782804f24ff35135f7b09c0733a9fc"
 
 # Infrastructure Configuration
 instance_type = "t3.micro"
@@ -38,7 +38,7 @@ enable_s3_notifications = false
 common_tags = {
   Project = "ephemeral-environments"
   ManagedBy = "terraform"
-  Environment = "demo-env-1768195876"
+  Environment = "demo-env-1768205081"
   Branch = "main"
-  DeployedAt = "2026-01-12T05:31:17Z"
+  DeployedAt = "2026-01-12T08:04:52Z"
 }

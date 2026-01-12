@@ -1,4 +1,4 @@
-name: Ephemeral Environment Management v2
+name: Ephemeral Environment Management
 
 on:
   pull_request:
@@ -349,57 +349,9 @@ jobs:
               body: comment
             });
 
-  # Job 4: Manual workflow dispatch
+  # Job 3: Manual workflow dispatch
   manual-action:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build application
-        run: npm run build
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Execute manual action
-        run: |
-          ACTION="${{ github.event.inputs.action }}"
-          BRANCH="${{ github.event.inputs.branch || github.ref_name }}"
-          
-          case $ACTION in
-            provision)
-              echo "Provisioning environment for branch: $BRANCH"
-              npm run start -- provision --branch "$BRANCH" --template demo --output json
-              ;;
-            cleanup)
-              echo "Running cleanup for branch: $BRANCH"
-              npm run start -- cleanup --branch "$BRANCH" --force
-              ;;
-            status)
-              echo "Checking status of environments"
-              npm run start -- status --output json
-              ;;
-          esac
-
-  # Job 5: Scheduled cleanup of old environments
-  scheduled-cleanup:
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     
     steps:
@@ -458,3 +410,4 @@ jobs:
               exit 1
               ;;
           esac
+          
