@@ -90,23 +90,53 @@ jobs:
           echo "Environment variables check:"
           echo "AWS_ACCESS_KEY_ID is set: ${AWS_ACCESS_KEY_ID:+yes}"
           echo "AWS_SECRET_ACCESS_KEY is set: ${AWS_SECRET_ACCESS_KEY:+yes}"
+          echo "AWS_SESSION_TOKEN is set: ${AWS_SESSION_TOKEN:+yes}"
           echo "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-not set}"
           echo "AWS_REGION: ${AWS_REGION:-not set}"
           
+          echo "Testing network connectivity to AWS..."
+          curl -s --connect-timeout 10 https://sts.amazonaws.com/ > /dev/null && echo "✓ Can reach AWS STS endpoint" || echo "✗ Cannot reach AWS STS endpoint"
+          
           echo "Testing AWS CLI..."
           aws --version
-          aws sts get-caller-identity
+          
+          echo "AWS CLI configuration:"
+          aws configure list || echo "Failed to get AWS config list"
+          
+          echo "Testing AWS STS call with verbose output..."
+          aws sts get-caller-identity --output json 2>&1 || echo "AWS STS call failed"
           
           # Check if we're using the correct AWS account
-          CURRENT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          if [ "$CURRENT_ACCOUNT" != "${{ env.AWS_ACCOUNT_ID }}" ]; then
-            echo "ERROR: Wrong AWS account! Expected: ${{ env.AWS_ACCOUNT_ID }}, Got: $CURRENT_ACCOUNT"
+          echo "Checking account ID..."
+          if CURRENT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
+            echo "Current Account: $CURRENT_ACCOUNT"
+            if [ "$CURRENT_ACCOUNT" != "${{ env.AWS_ACCOUNT_ID }}" ]; then
+              echo "ERROR: Wrong AWS account! Expected: ${{ env.AWS_ACCOUNT_ID }}, Got: $CURRENT_ACCOUNT"
+              exit 1
+            fi
+            echo "AWS credentials verified successfully!"
+            echo "Account ID: $CURRENT_ACCOUNT"
+          else
+            echo "ERROR: Failed to get AWS account ID"
+            echo "This indicates an authentication issue"
             exit 1
           fi
-          
-          echo "AWS credentials verified successfully!"
-          echo "Account ID: $CURRENT_ACCOUNT"
           echo "Region: ${{ env.AWS_REGION }}"
+
+      - name: Configure AWS CLI for deployment
+        run: |
+          echo "Configuring AWS CLI for deployment script..."
+          # Ensure AWS CLI uses the correct region
+          aws configure set region ${{ env.AWS_REGION }}
+          aws configure set output json
+          
+          # Verify configuration
+          echo "AWS CLI configuration after setup:"
+          aws configure list
+          
+          # Test one more time to ensure everything works
+          echo "Final AWS identity verification:"
+          aws sts get-caller-identity
 
       - name: Initialize ephemeral demo configuration
         run: |

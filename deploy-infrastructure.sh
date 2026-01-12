@@ -163,30 +163,82 @@ check_prerequisites() {
     
     # Try to get AWS identity (works for both credential methods)
     print_status "Verifying AWS identity..."
+    
+    # Debug AWS CLI configuration
+    print_status "AWS CLI debug information:"
+    echo "  AWS CLI version: $(aws --version 2>&1)"
+    echo "  AWS config list:"
+    aws configure list 2>&1 || echo "  Failed to get AWS config list"
+    
+    # Try to get caller identity with detailed error output and retry logic
+    print_status "Attempting to call AWS STS..."
     local aws_identity
-    if aws_identity=$(aws sts get-caller-identity 2>/dev/null); then
-        local account_id=$(echo "$aws_identity" | jq -r '.Account' 2>/dev/null || echo "unknown")
-        local user_arn=$(echo "$aws_identity" | jq -r '.Arn' 2>/dev/null || echo "unknown")
-        
-        print_status "Current AWS Identity:"
-        echo "  Account ID: $account_id"
-        echo "  User ARN: $user_arn"
-        echo "  AWS Profile: ${AWS_PROFILE:-default}"
-        echo "  AWS Region: ${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo $AWS_REGION)}"
-        
-        # Verify we're using the correct account
-        if [ "$account_id" != "911167929263" ]; then
-            print_error "Wrong AWS account! Expected: 911167929263, Got: $account_id"
-            if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
-                print_error "Please check your GitHub Actions AWS credentials configuration"
+    local aws_error
+    local retry_count=0
+    local max_retries=3
+    
+    while [ $retry_count -lt $max_retries ]; do
+        if aws_identity=$(aws sts get-caller-identity 2>&1); then
+            # Check if the output is actually valid JSON (sometimes aws returns error as stdout)
+            if echo "$aws_identity" | jq . >/dev/null 2>&1; then
+                break
             else
-                print_error "Please switch to the correct AWS profile:"
-                print_error "  export AWS_PROFILE=your-profile-for-911167929263"
+                print_warning "AWS STS returned invalid JSON (attempt $((retry_count + 1))/$max_retries):"
+                echo "$aws_identity"
             fi
-            exit 1
+        else
+            print_warning "AWS STS call failed (attempt $((retry_count + 1))/$max_retries)"
         fi
-    else
-        print_error "Failed to verify AWS identity. Please check your AWS credentials."
+        
+        retry_count=$((retry_count + 1))
+        if [ $retry_count -lt $max_retries ]; then
+            print_status "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    # Check if we succeeded after retries
+    if [ $retry_count -eq $max_retries ]; then
+        aws_error="$aws_identity"
+        print_error "Failed to verify AWS identity after $max_retries attempts. AWS CLI error:"
+        echo "$aws_error"
+        print_error ""
+        print_error "Possible causes:"
+        print_error "1. Invalid AWS credentials"
+        print_error "2. Network connectivity issues"
+        print_error "3. AWS service unavailable"
+        print_error "4. Insufficient permissions for sts:GetCallerIdentity"
+        
+        if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+            print_error ""
+            print_error "In CI/CD environment, check:"
+            print_error "- GitHub Actions secrets are correctly configured"
+            print_error "- AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are valid"
+            print_error "- The IAM user has sts:GetCallerIdentity permission"
+        fi
+        exit 1
+    fi
+    
+    # If we get here, we have a valid response
+    # If we get here, we have a valid response
+    local account_id=$(echo "$aws_identity" | jq -r '.Account' 2>/dev/null || echo "unknown")
+    local user_arn=$(echo "$aws_identity" | jq -r '.Arn' 2>/dev/null || echo "unknown")
+    
+    print_status "Current AWS Identity:"
+    echo "  Account ID: $account_id"
+    echo "  User ARN: $user_arn"
+    echo "  AWS Profile: ${AWS_PROFILE:-default}"
+    echo "  AWS Region: ${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo $AWS_REGION)}"
+    
+    # Verify we're using the correct account
+    if [ "$account_id" != "911167929263" ]; then
+        print_error "Wrong AWS account! Expected: 911167929263, Got: $account_id"
+        if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+            print_error "Please check your GitHub Actions AWS credentials configuration"
+        else
+            print_error "Please switch to the correct AWS profile:"
+            print_error "  export AWS_PROFILE=your-profile-for-911167929263"
+        fi
         exit 1
     fi
     
