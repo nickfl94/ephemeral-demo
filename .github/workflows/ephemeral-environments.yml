@@ -84,6 +84,18 @@ jobs:
         with:
           terraform_version: 1.6.0
 
+      - name: Clean AWS profile environment
+        run: |
+          echo "Cleaning AWS profile environment variables..."
+          unset AWS_PROFILE
+          unset AWS_DEFAULT_PROFILE
+          echo "AWS_PROFILE unset"
+          echo "AWS_DEFAULT_PROFILE unset"
+          
+          # Verify environment is clean
+          echo "Current AWS environment:"
+          env | grep -E '^AWS_' | grep -v 'SECRET' || echo "No problematic AWS env vars"
+
       - name: Verify AWS credentials
         run: |
           echo "Verifying AWS credentials..."
@@ -126,11 +138,16 @@ jobs:
       - name: Configure AWS CLI for deployment
         run: |
           echo "Configuring AWS CLI for deployment script..."
-          # Ensure AWS CLI uses the correct region
+          
+          # CRITICAL: Unset AWS_PROFILE to force environment variable usage
+          unset AWS_PROFILE
+          unset AWS_DEFAULT_PROFILE
+          
+          # Ensure AWS CLI uses the correct region and environment variables
           aws configure set region ${{ env.AWS_REGION }}
           aws configure set output json
           
-          # Verify configuration
+          # Verify configuration - should show environment variables, not profile
           echo "AWS CLI configuration after setup:"
           aws configure list
           

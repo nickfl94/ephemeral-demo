@@ -488,11 +488,10 @@ export class DemoOrchestrator {
       // Handle AWS profile configuration - clear profile in CI/CD environments
       if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') {
         // In CI/CD, use direct AWS credentials (no profile)
-        deploymentEnv.AWS_PROFILE = '';
-        deploymentEnv.TF_VAR_aws_profile = '';
-        // Remove any existing profile environment variables
+        // Don't set AWS_PROFILE at all - let it use environment variables
         delete deploymentEnv.AWS_PROFILE;
         delete deploymentEnv.TF_VAR_aws_profile;
+        delete deploymentEnv.AWS_DEFAULT_PROFILE;
       } else {
         // In local development, use the configured profile
         deploymentEnv.AWS_PROFILE = process.env.AWS_PROFILE || undefined;

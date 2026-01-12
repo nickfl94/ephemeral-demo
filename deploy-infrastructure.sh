@@ -143,6 +143,11 @@ check_prerequisites() {
             exit 1
         fi
         
+        # CRITICAL: Unset AWS_PROFILE completely to force use of environment variables
+        unset AWS_PROFILE
+        unset AWS_DEFAULT_PROFILE
+        export AWS_PROFILE=""
+        
         # Set AWS region if not already set
         if [ -z "${AWS_DEFAULT_REGION}" ]; then
             export AWS_DEFAULT_REGION="${AWS_REGION}"
@@ -153,6 +158,7 @@ check_prerequisites() {
         print_status "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:+[SET]}"
         print_status "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:+[SET]}"
         print_status "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}"
+        print_status "Cleared AWS_PROFILE to force environment variable usage"
     else
         # In local development, check AWS CLI configuration
         if ! aws sts get-caller-identity >/dev/null 2>&1; then
