@@ -72,39 +72,45 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+      # Using custom AWS credentials setup instead of aws-actions/configure-aws-credentials
+      # to avoid AWS_PROFILE issues that cause "config profile () could not be found" errors
+      - name: Setup custom AWS credentials
+        run: |
+          echo "Setting up AWS credentials manually to avoid profile issues..."
+          
+          # Verify secrets are available
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "ERROR: AWS credentials not found in GitHub secrets"
+            exit 1
+          fi
+          
+          # Set AWS credentials as environment variables
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+          
+          # Explicitly ensure no profile variables are set
+          echo "AWS_PROFILE=" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_PROFILE=" >> $GITHUB_ENV
+          
+          echo "AWS credentials configured manually"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
 
-      - name: Clean AWS profile environment
+      - name: Verify custom AWS setup
         run: |
-          echo "Cleaning AWS profile environment variables..."
-          unset AWS_PROFILE
-          unset AWS_DEFAULT_PROFILE
-          echo "AWS_PROFILE unset"
-          echo "AWS_DEFAULT_PROFILE unset"
-          
-          # Verify environment is clean
-          echo "Current AWS environment:"
-          env | grep -E '^AWS_' | grep -v 'SECRET' || echo "No problematic AWS env vars"
-
-      - name: Verify AWS credentials
-        run: |
-          echo "Verifying AWS credentials..."
+          echo "Verifying custom AWS credentials setup..."
           echo "Environment variables check:"
           echo "AWS_ACCESS_KEY_ID is set: ${AWS_ACCESS_KEY_ID:+yes}"
           echo "AWS_SECRET_ACCESS_KEY is set: ${AWS_SECRET_ACCESS_KEY:+yes}"
           echo "AWS_SESSION_TOKEN is set: ${AWS_SESSION_TOKEN:+yes}"
           echo "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-not set}"
           echo "AWS_REGION: ${AWS_REGION:-not set}"
+          echo "AWS_PROFILE: '${AWS_PROFILE:-not set}'"
+          echo "AWS_DEFAULT_PROFILE: '${AWS_DEFAULT_PROFILE:-not set}'"
           
           echo "Testing network connectivity to AWS..."
           curl -s --connect-timeout 10 https://sts.amazonaws.com/ > /dev/null && echo "✓ Can reach AWS STS endpoint" || echo "✗ Cannot reach AWS STS endpoint"
@@ -139,21 +145,25 @@ jobs:
         run: |
           echo "Configuring AWS CLI for deployment script..."
           
-          # CRITICAL: Unset AWS_PROFILE to force environment variable usage
+          # CRITICAL: Completely remove AWS profile from environment
           unset AWS_PROFILE
           unset AWS_DEFAULT_PROFILE
           
-          # Ensure AWS CLI uses the correct region and environment variables
-          aws configure set region ${{ env.AWS_REGION }}
-          aws configure set output json
+          # Use env -u to run AWS CLI without profile variables
+          echo "Testing AWS CLI without profile variables..."
+          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure list
+          
+          # Configure AWS CLI to use environment variables
+          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure set region ${{ env.AWS_REGION }}
+          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure set output json
           
           # Verify configuration - should show environment variables, not profile
           echo "AWS CLI configuration after setup:"
-          aws configure list
+          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure list
           
-          # Test one more time to ensure everything works
-          echo "Final AWS identity verification:"
-          aws sts get-caller-identity
+          # Test AWS identity with clean environment
+          echo "Testing AWS identity with clean environment:"
+          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws sts get-caller-identity
 
       - name: Initialize ephemeral demo configuration
         run: |

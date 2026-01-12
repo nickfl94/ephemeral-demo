@@ -170,11 +170,38 @@ check_prerequisites() {
     # Try to get AWS identity (works for both credential methods)
     print_status "Verifying AWS identity..."
     
+    # CRITICAL: Force unset all profile-related environment variables
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+        print_status "Forcing removal of all AWS profile environment variables..."
+        unset AWS_PROFILE
+        unset AWS_DEFAULT_PROFILE
+        # Also remove from current shell environment
+        export -n AWS_PROFILE 2>/dev/null || true
+        export -n AWS_DEFAULT_PROFILE 2>/dev/null || true
+        
+        # Verify they are gone
+        if [ -n "${AWS_PROFILE+x}" ]; then
+            print_warning "AWS_PROFILE still set: '${AWS_PROFILE}'"
+        else
+            print_status "AWS_PROFILE successfully unset"
+        fi
+        
+        if [ -n "${AWS_DEFAULT_PROFILE+x}" ]; then
+            print_warning "AWS_DEFAULT_PROFILE still set: '${AWS_DEFAULT_PROFILE}'"
+        else
+            print_status "AWS_DEFAULT_PROFILE successfully unset"
+        fi
+    fi
+    
     # Debug AWS CLI configuration
     print_status "AWS CLI debug information:"
     echo "  AWS CLI version: $(aws --version 2>&1)"
     echo "  AWS config list:"
-    aws configure list 2>&1 || echo "  Failed to get AWS config list"
+    if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+        env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure list 2>&1 || echo "  Failed to get AWS config list"
+    else
+        aws configure list 2>&1 || echo "  Failed to get AWS config list"
+    fi
     
     # Try to get caller identity with detailed error output and retry logic
     print_status "Attempting to call AWS STS..."
@@ -184,7 +211,15 @@ check_prerequisites() {
     local max_retries=3
     
     while [ $retry_count -lt $max_retries ]; do
-        if aws_identity=$(aws sts get-caller-identity 2>&1); then
+        # Use env -u to ensure no profile variables are passed to AWS CLI
+        if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
+            print_status "Using env -u to call AWS CLI without profile variables (attempt $((retry_count + 1)))"
+            aws_identity=$(env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws sts get-caller-identity 2>&1)
+        else
+            aws_identity=$(aws sts get-caller-identity 2>&1)
+        fi
+        
+        if [ $? -eq 0 ]; then
             # Check if the output is actually valid JSON (sometimes aws returns error as stdout)
             if echo "$aws_identity" | jq . >/dev/null 2>&1; then
                 break
@@ -194,6 +229,7 @@ check_prerequisites() {
             fi
         else
             print_warning "AWS STS call failed (attempt $((retry_count + 1))/$max_retries)"
+            echo "Error output: $aws_identity"
         fi
         
         retry_count=$((retry_count + 1))
