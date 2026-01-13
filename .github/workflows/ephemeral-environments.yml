@@ -108,6 +108,24 @@ jobs:
           chmod +x ./scripts/fix-terraform-state.sh
           ./scripts/fix-terraform-state.sh || echo "State recovery attempted"
 
+      - name: Sync state before deployment
+        run: |
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+          
+          # Get current S3 checksum and update DynamoDB
+          aws s3 cp s3://${{ secrets.TERRAFORM_STATE_BUCKET }}/main/terraform.tfstate /tmp/state.tfstate --region ${{ env.AWS_REGION }} --quiet
+          CHECKSUM=$(md5sum /tmp/state.tfstate | awk '{print $1}')
+          
+          echo "{\":checksum\": {\"S\": \"$CHECKSUM\"}}" > /tmp/update.json
+          aws dynamodb update-item \
+            --table-name ${{ secrets.TERRAFORM_STATE_TABLE }} \
+            --key '{"LockID": {"S": "${{ secrets.TERRAFORM_STATE_BUCKET }}/main/terraform.tfstate"}}' \
+            --update-expression "SET Digest = :checksum" \
+            --expression-attribute-values file:///tmp/update.json \
+            --region ${{ env.AWS_REGION }}
+    
+          echo "✓ Synced checksum: $CHECKSUM
+
       - name: Provision ephemeral environment
         id: provision
         run: |
