@@ -14,15 +14,14 @@ on:
         default: 'provision'
         type: choice
         options:
-        - provision
-        - cleanup
-        - status
+          - provision
+          - cleanup
+          - status
       branch:
         description: 'Branch name (for manual provision)'
         required: false
         type: string
   schedule:
-    # Run cleanup every 2 hours
     - cron: '0 */2 * * *'
 
 permissions:
@@ -36,25 +35,14 @@ env:
   NODE_VERSION: '18'
 
 jobs:
-  # Job 1: Provision environment on PR open/update
   provision-environment:
     if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened'
     runs-on: ubuntu-latest
     outputs:
       environment-id: ${{ steps.provision.outputs.environment-id }}
       environment-url: ${{ steps.provision.outputs.environment-url }}
-    
-    steps:
-      - name: Debug workflow trigger
-        run: |
-          echo "=== Ephemeral Environment Provisioning ==="
-          echo "Event name: ${{ github.event_name }}"
-          echo "Event action: ${{ github.event.action }}"
-          echo "Base ref: ${{ github.base_ref }}"
-          echo "Head ref: ${{ github.head_ref }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "============================================"
 
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -65,175 +53,59 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          # Handle potential lock file sync issues
-          npm ci || (echo "Lock file out of sync, running npm install..." && rm -rf node_modules package-lock.json && npm install)
+        run: npm ci || npm install
 
       - name: Build application
         run: npm run build
 
-      # Using custom AWS credentials setup instead of aws-actions/configure-aws-credentials
-      # to avoid AWS_PROFILE issues that cause "config profile () could not be found" errors
-      - name: Setup custom AWS credentials
+      - name: Configure AWS credentials
         run: |
-          echo "Setting up AWS credentials manually to avoid profile issues..."
-          
-          # Verify secrets are available
-          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
-            echo "ERROR: AWS credentials not found in GitHub secrets"
-            exit 1
-          fi
-          
-          # Set AWS credentials as environment variables
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
           echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
-          
-          # Explicitly ensure no profile variables are set
-          echo "AWS_PROFILE=" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_PROFILE=" >> $GITHUB_ENV
-          
-          echo "AWS credentials configured manually"
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
 
-      - name: Verify custom AWS setup
+      - name: Verify AWS credentials
         run: |
-          echo "Verifying custom AWS credentials setup..."
-          echo "Environment variables check:"
-          echo "AWS_ACCESS_KEY_ID is set: ${AWS_ACCESS_KEY_ID:+yes}"
-          echo "AWS_SECRET_ACCESS_KEY is set: ${AWS_SECRET_ACCESS_KEY:+yes}"
-          echo "AWS_SESSION_TOKEN is set: ${AWS_SESSION_TOKEN:+yes}"
-          echo "AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-not set}"
-          echo "AWS_REGION: ${AWS_REGION:-not set}"
-          echo "AWS_PROFILE: '${AWS_PROFILE:-not set}'"
-          echo "AWS_DEFAULT_PROFILE: '${AWS_DEFAULT_PROFILE:-not set}'"
-          
-          echo "Testing network connectivity to AWS..."
-          curl -s --connect-timeout 10 https://sts.amazonaws.com/ > /dev/null && echo "✓ Can reach AWS STS endpoint" || echo "✗ Cannot reach AWS STS endpoint"
-          
-          echo "Testing AWS CLI..."
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
+          echo "=== AWS Configuration ==="
+          echo "Region: $AWS_REGION"
           aws --version
-          
-          echo "AWS CLI configuration:"
-          aws configure list || echo "Failed to get AWS config list"
-          
-          echo "Testing AWS STS call with verbose output..."
-          aws sts get-caller-identity --output json 2>&1 || echo "AWS STS call failed"
-          
-          # Check if we're using the correct AWS account
-          echo "Checking account ID..."
-          if CURRENT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
-            echo "Current Account: $CURRENT_ACCOUNT"
-            if [ "$CURRENT_ACCOUNT" != "${{ env.AWS_ACCOUNT_ID }}" ]; then
-              echo "ERROR: Wrong AWS account! Expected: ${{ env.AWS_ACCOUNT_ID }}, Got: $CURRENT_ACCOUNT"
-              exit 1
-            fi
-            echo "AWS credentials verified successfully!"
-            echo "Account ID: $CURRENT_ACCOUNT"
-          else
-            echo "ERROR: Failed to get AWS account ID"
-            echo "This indicates an authentication issue"
+
+          echo "=== Testing AWS Authentication ==="
+          CURRENT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          echo "Account ID: $CURRENT_ACCOUNT"
+
+          if [ "$CURRENT_ACCOUNT" != "${{ env.AWS_ACCOUNT_ID }}" ]; then
+            echo "ERROR: Wrong AWS account"
             exit 1
           fi
-          echo "Region: ${{ env.AWS_REGION }}"
 
-      - name: Configure AWS CLI for deployment
-        run: |
-          echo "Configuring AWS CLI for deployment script..."
-          
-          # CRITICAL: Completely remove AWS profile from environment
-          unset AWS_PROFILE
-          unset AWS_DEFAULT_PROFILE
-          
-          # Use env -u to run AWS CLI without profile variables
-          echo "Testing AWS CLI without profile variables..."
-          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure list
-          
-          # Configure AWS CLI to use environment variables
-          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure set region ${{ env.AWS_REGION }}
-          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure set output json
-          
-          # Verify configuration - should show environment variables, not profile
-          echo "AWS CLI configuration after setup:"
-          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws configure list
-          
-          # Test AWS identity with clean environment
-          echo "Testing AWS identity with clean environment:"
-          env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE aws sts get-caller-identity
-
-      - name: Initialize ephemeral demo configuration
-        run: |
-          mkdir -p ~/.ephemeral-demo
-          cat > ~/.ephemeral-demo/config.json << EOF
-          {
-            "aws": {
-              "region": "${{ env.AWS_REGION }}",
-              "accountId": "${{ env.AWS_ACCOUNT_ID }}"
-            },
-            "defaults": {
-              "instanceType": "t3.micro",
-              "maxLifetime": 4,
-              "costThreshold": 25
-            },
-            "terraform": {
-              "stateBackend": {
-                "bucket": "${{ secrets.TERRAFORM_STATE_BUCKET }}",
-                "region": "${{ env.AWS_REGION }}",
-                "dynamodbTable": "${{ secrets.TERRAFORM_STATE_TABLE }}"
-              }
-            }
-          }
-          EOF
-          echo "Configuration file created:"
-          cat ~/.ephemeral-demo/config.json
+          echo "✓ AWS credentials verified"
 
       - name: Provision ephemeral environment
         id: provision
         run: |
-          # Extract branch name and sanitize it
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
           BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
-          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
-          
-          # Truncate branch name to keep total length manageable (ALB names have 32 char limit)
-          # Format: env-{short-branch}-{fixed-suffix} for consistency
-          SHORT_BRANCH=$(echo "$SANITIZED_BRANCH" | cut -c1-15)  # Max 15 chars for branch
-          
-          echo "Provisioning environment for branch: $BRANCH_NAME (sanitized: $SANITIZED_BRANCH, short: $SHORT_BRANCH)"
-          
-          # Use a consistent environment name for the same branch to avoid recreating resources
-          # This allows Terraform to update existing resources instead of replacing everything
-          export ENVIRONMENT_NAME="env-${SHORT_BRANCH}"
-          export BRANCH_NAME="$BRANCH_NAME"
-          export AWS_REGION="${{ env.AWS_REGION }}"
-          export APP_VERSION="1.0.0"
-          export BUILD_NUMBER="${{ github.run_number }}"
-          export GIT_COMMIT="${{ github.sha }}"
-          # Override AWS profile for CI/CD - use direct credentials instead of profile
-          export AWS_PROFILE=""
-          export TF_VAR_aws_profile=""
-          # Set CI flags for non-interactive deployment
+          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]' | cut -c1-15)
+
+          export ENVIRONMENT_NAME="env-${SANITIZED_BRANCH}"
           export CI=true
           export GITHUB_ACTIONS=true
-          
-          echo "Deployment configuration:"
-          echo "  Environment: $ENVIRONMENT_NAME"
-          echo "  Branch: $BRANCH_NAME"
-          echo "  Region: $AWS_REGION"
-          echo "  Build: $BUILD_NUMBER"
-          echo "  Commit: $GIT_COMMIT"
-          
-          # Test CLI first to ensure it's working
-          echo "Testing CLI..."
-          npm run start -- --help
-          
-          # Try to provision using CLI (which will use the updated orchestrator)
-          echo "Starting environment provisioning via CLI..."
-          
-          # Add timeout to prevent hanging (5 minutes max for CLI)
+          export TF_VAR_aws_profile=""
+
+          echo "Provisioning: $ENVIRONMENT_NAME (branch: $BRANCH_NAME)"
+
           timeout 300 npm run start -- provision \
             --branch "$BRANCH_NAME" \
             --template demo \
@@ -242,60 +114,25 @@ jobs:
             --max-lifetime 4 \
             --cost-threshold 25 \
             --output json > cli_result.json 2>&1 || CLI_FAILED=true
-          
+
           if [ "$CLI_FAILED" = "true" ] || [ ! -f "cli_result.json" ]; then
-            echo "CLI provisioning failed or timed out - using fallback"
-            RESULT='{"error": "provisioning failed"}'
+            echo "CLI provisioning failed, using fallback deployment"
+            chmod +x ./deploy-infrastructure.sh
+            ./deploy-infrastructure.sh deploy
+
+            cd terraform
+            ENV_URL=$(terraform output -raw application_url 2>/dev/null || \
+                     echo "http://$(terraform output -raw load_balancer_dns_name 2>/dev/null)")
+            cd ..
+            ENV_ID="$ENVIRONMENT_NAME"
           else
             RESULT=$(cat cli_result.json)
-          fi
-          
-          echo "Provisioning result: $RESULT"
-          echo "Checking if result contains valid JSON..."
-          
-          # Try to extract environment details (handle both success and failure)
-          if echo "$RESULT" | jq -e '.data.environmentId' > /dev/null 2>&1; then
-            ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId')
+            ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId // "'$ENVIRONMENT_NAME'"')
             ENV_URL=$(echo "$RESULT" | jq -r '.data.urls.application // "http://pending-deployment"')
-            echo "Successfully provisioned environment via CLI: $ENV_ID"
-            echo "Application URL from CLI: $ENV_URL"
-          else
-            # If CLI fails, fall back to direct deployment script
-            echo "CLI provisioning failed, trying direct deployment script..."
-            
-            # Make deployment script executable
-            chmod +x ./deploy-infrastructure.sh
-            
-            # Run deployment script directly
-            ./deploy-infrastructure.sh deploy
-            
-            # Get outputs from Terraform
-            cd terraform
-            APPLICATION_URL=$(terraform output -raw application_url 2>/dev/null || echo "")
-            ALB_DNS=$(terraform output -raw load_balancer_dns_name 2>/dev/null || echo "")
-            cd ..
-            
-            ENV_ID="$ENVIRONMENT_NAME"
-            
-            # Use the application_url output first, fallback to ALB DNS
-            if [ -n "$APPLICATION_URL" ] && [ "$APPLICATION_URL" != "" ]; then
-              ENV_URL="$APPLICATION_URL"
-            elif [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "" ]; then
-              ENV_URL="http://$ALB_DNS"
-            else
-              ENV_URL="http://deployment-pending"
-            fi
-            
-            echo "Direct deployment completed:"
-            echo "Environment ID: $ENV_ID"
-            echo "Application URL: $ENV_URL"
-            echo "ALB DNS: $ALB_DNS"
           fi
-          
+
           echo "environment-id=$ENV_ID" >> $GITHUB_OUTPUT
           echo "environment-url=$ENV_URL" >> $GITHUB_OUTPUT
-          
-          # Store environment info for cleanup
           echo "$ENV_ID" > .environment-id
 
       - name: Upload environment info
@@ -305,35 +142,28 @@ jobs:
           path: .environment-id
           retention-days: 7
 
-      - name: Comment on PR with environment details
+      - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const envId = '${{ steps.provision.outputs.environment-id }}';
             const envUrl = '${{ steps.provision.outputs.environment-url }}';
-            
+
             const comment = `## 🚀 Ephemeral Environment Deployed
-            
-            **Environment ID:** \`${envId}\`
-            **Application URL:** ${envUrl}
+
+            **Environment:** \`${envId}\`
+            **URL:** ${envUrl}
             **Branch:** \`${{ github.head_ref }}\`
             **Commit:** \`${{ github.sha }}\`
-            
-            This environment will be automatically destroyed when the PR is closed or after 4 hours of inactivity.
-            
+
+            This environment will be automatically destroyed when the PR is closed or after 4 hours.
+
             ### Quick Actions
-            - 🔍 [View Application](${envUrl})
-            - 📊 [Check Status](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            - 🗑️ Manual cleanup available via workflow dispatch
-            
-            ### Environment Details
-            - **Region:** ${{ env.AWS_REGION }}
-            - **Instance Type:** t3.micro
-            - **Max Lifetime:** 4 hours
-            - **Cost Threshold:** $25
+            - [View Application](${envUrl})
+            - [Check Status](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -341,20 +171,11 @@ jobs:
               body: comment
             });
 
-  # Job 2: Cleanup environment on PR close
   cleanup-environment:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Debug cleanup trigger
-        run: |
-          echo "=== Environment Cleanup ==="
-          echo "Event name: ${{ github.event_name }}"
-          echo "Event action: ${{ github.event.action }}"
-          echo "Branch: ${{ github.head_ref }}"
-          echo "=========================="
 
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -365,78 +186,47 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci || (echo "Lock file out of sync, running npm install..." && rm -rf node_modules package-lock.json && npm install)
+        run: npm ci || npm install
 
       - name: Build application
         run: npm run build
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+        run: |
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
 
-      - name: Initialize ephemeral demo configuration
+      - name: Destroy environment
         run: |
-          mkdir -p ~/.ephemeral-demo
-          cat > ~/.ephemeral-demo/config.json << EOF
-          {
-            "aws": {
-              "region": "${{ env.AWS_REGION }}",
-              "accountId": "${{ env.AWS_ACCOUNT_ID }}"
-            },
-            "defaults": {
-              "instanceType": "t3.micro",
-              "maxLifetime": 4,
-              "costThreshold": 25
-            },
-            "terraform": {
-              "stateBackend": {
-                "bucket": "${{ secrets.TERRAFORM_STATE_BUCKET }}",
-                "region": "${{ env.AWS_REGION }}",
-                "dynamodbTable": "${{ secrets.TERRAFORM_STATE_TABLE }}"
-              }
-            }
-          }
-          EOF
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
 
-      - name: Find and destroy environment
-        run: |
           BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
-          
-          echo "Looking for environments to cleanup for branch: $BRANCH_NAME"
-          
-          # List environments for this branch
-          echo "Checking environment status..."
-          npm run start -- status --output json || echo "Status check failed, continuing with cleanup"
-          
-          # Try to find and destroy environments
-          echo "Attempting to destroy environments for branch: $BRANCH_NAME"
-          npm run start -- cleanup --branch "$BRANCH_NAME" --force || echo "Cleanup command completed (may have had no environments to clean)"
+          echo "Cleaning up environments for branch: $BRANCH_NAME"
 
-      - name: Comment on PR about cleanup
+          npm run start -- cleanup --branch "$BRANCH_NAME" --force || true
+
+      - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const comment = `## 🗑️ Environment Cleanup Complete
-            
-            The ephemeral environment for this PR has been cleaned up.
-            
+
+            The ephemeral environment has been destroyed.
+
             **Branch:** \`${{ github.head_ref }}\`
-            **Action:** PR ${{ github.event.action }}
-            **Cleanup Time:** ${new Date().toISOString()}
-            
-            All AWS resources associated with this environment have been destroyed.
+            **Timestamp:** ${new Date().toISOString()}
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -444,19 +234,11 @@ jobs:
               body: comment
             });
 
-  # Job 3: Manual workflow dispatch
   manual-action:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Debug manual trigger
-        run: |
-          echo "=== Manual Workflow Dispatch ==="
-          echo "Action: ${{ github.event.inputs.action }}"
-          echo "Branch: ${{ github.event.inputs.branch || github.ref_name }}"
-          echo "================================"
 
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -467,37 +249,35 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm ci || (echo "Lock file out of sync, running npm install..." && rm -rf node_modules package-lock.json && npm install)
+        run: npm ci || npm install
 
       - name: Build application
         run: npm run build
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Execute manual action
         run: |
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+
+      - name: Execute action
+        run: |
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
           ACTION="${{ github.event.inputs.action }}"
           BRANCH="${{ github.event.inputs.branch || github.ref_name }}"
-          
-          echo "Executing action: $ACTION for branch: $BRANCH"
-          
+
           case $ACTION in
             provision)
-              echo "Provisioning environment for branch: $BRANCH"
               npm run start -- provision --branch "$BRANCH" --template demo --output json
               ;;
             cleanup)
-              echo "Running cleanup for branch: $BRANCH"
               npm run start -- cleanup --branch "$BRANCH" --force
               ;;
             status)
-              echo "Checking status of environments"
               npm run start -- status --output json
               ;;
             *)
@@ -505,4 +285,3 @@ jobs:
               exit 1
               ;;
           esac
-          
