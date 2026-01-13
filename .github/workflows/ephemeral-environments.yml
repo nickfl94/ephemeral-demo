@@ -123,7 +123,7 @@ jobs:
             --update-expression "SET Digest = :checksum" \
             --expression-attribute-values file:///tmp/update.json \
             --region ${{ env.AWS_REGION }}
-          echo "✓ Synced checksum: $CHECKSUM
+          echo "✓ Synced checksum: $CHECKSUM"
 
       - name: Provision ephemeral environment
         id: provision
