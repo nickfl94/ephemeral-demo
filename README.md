@@ -44,7 +44,7 @@ npm run dev -- config --copy-example basic-demo
 
 ```bash
 # Provision an environment
-npm run dev -- provision --branch my-feature --template webapp
+npm run dev -- provision --branch my-feature --template demo
 
 # Check environment status
 npm run dev -- status

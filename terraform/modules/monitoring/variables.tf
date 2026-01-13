@@ -68,6 +68,12 @@ variable "enable_custom_metrics" {
   default     = true
 }
 
+variable "enable_load_balancer" {
+  description = "Whether load balancer monitoring is enabled"
+  type        = bool
+  default     = true
+}
+
 variable "create_sns_topic" {
   description = "Whether to create an SNS topic for notifications"
   type        = bool

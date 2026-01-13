@@ -95,11 +95,17 @@ export interface DeploymentTarget {
  */
 export interface EC2Config {
   /** Instance ID to deploy to */
-  instanceId: string;
+  instanceId?: string;
   /** SSH key for access */
-  keyName: string;
-  /** Security group IDs */
-  securityGroups: string[];
+  keyName?: string;
+  /** Security groups */
+  securityGroups?: string[];
+  /** Load balancer DNS name */
+  loadBalancerDns?: string;
+  /** Auto Scaling Group name */
+  autoscalingGroupName?: string;
+  /** VPC ID */
+  vpcId?: string;
 }
 
 /**

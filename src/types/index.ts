@@ -11,11 +11,13 @@ export interface EnvironmentConfig {
   /** Git branch associated with this environment */
   branch: string;
   /** Template type for the environment */
-  template: 'webapp' | 'api' | 'fullstack';
+  template: 'webapp' | 'api' | 'fullstack' | 'demo';
   /** AWS region for deployment */
   region: string;
   /** EC2 instance type to use */
   instanceType: string;
+  /** Application version */
+  version?: string;
   /** Whether to automatically destroy the environment */
   autoDestroy: boolean;
   /** Maximum lifetime in hours before auto-destruction */
@@ -60,6 +62,15 @@ export interface EnvironmentState {
   };
   /** List of AWS resources created for this environment */
   resources: TerraformResource[];
+  /** Additional metadata for the environment */
+  metadata?: {
+    /** Terraform outputs */
+    terraformOutputs?: Record<string, any>;
+    /** Provisioning timestamp */
+    provisionedAt?: string;
+    /** Additional custom metadata */
+    [key: string]: any;
+  };
 }
 
 /**

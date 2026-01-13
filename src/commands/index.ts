@@ -22,7 +22,7 @@ export class DemoCommands {
     // Initialize orchestrator with configuration
     this.orchestrator = new DemoOrchestrator({
       configManager,
-      ecrRegistry: 'your-account-id.dkr.ecr.us-east-1.amazonaws.com/ephemeral-demo',
+      ecrRegistry: '911167929263.dkr.ecr.ap-southeast-2.amazonaws.com/ephemeral-demo',
       enableGitIntegration: false // Will be enabled based on configuration
     });
   }
@@ -54,7 +54,7 @@ export class DemoCommands {
 
       // Create overrides from command line options
       const overrides: Partial<EnvironmentConfig> = {};
-      if (options.template) overrides.template = options.template as 'webapp' | 'api' | 'fullstack';
+      if (options.template) overrides.template = options.template as 'webapp' | 'api' | 'fullstack' | 'demo';
       if (options.region) overrides.region = options.region;
       if (options.instanceType) overrides.instanceType = options.instanceType;
       if (options.autoDestroy !== undefined) overrides.autoDestroy = options.autoDestroy;
@@ -405,8 +405,8 @@ export class DemoCommands {
       throw new Error('Branch name is required');
     }
 
-    if (!['webapp', 'api', 'fullstack'].includes(config.template)) {
-      throw new Error('Template must be one of: webapp, api, fullstack');
+    if (!['webapp', 'api', 'fullstack', 'demo'].includes(config.template)) {
+      throw new Error('Template must be one of: webapp, api, fullstack, demo');
     }
 
     if (!config.region) {

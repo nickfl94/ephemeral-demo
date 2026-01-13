@@ -14,7 +14,7 @@ export class DockerBuilder {
   private readonly ecrRegistry: string;
   private readonly region: string;
 
-  constructor(ecrRegistry: string, region: string = 'us-east-1') {
+  constructor(ecrRegistry: string, region: string = 'ap-southeast-2') {
     this.ecrRegistry = ecrRegistry;
     this.region = region;
   }
@@ -25,7 +25,7 @@ export class DockerBuilder {
   async buildImage(config: ApplicationConfig): Promise<DockerBuildResult> {
     const startTime = Date.now();
     const imageTag = `${config.name}:${config.version}`;
-    const imageUri = `${this.ecrRegistry}/${imageTag}`;
+    const imageUri = `${this.ecrRegistry}:${config.version}`;
 
     try {
       // Ensure build context exists
@@ -43,7 +43,7 @@ export class DockerBuilder {
       const buildCommand = [
         'docker build',
         `-t ${imageTag}`,
-        `-f ${config.docker.dockerfile}`,
+        `-f ${dockerfilePath}`,
         config.docker.buildContext
       ].join(' ');
 
