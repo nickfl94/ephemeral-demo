@@ -29,6 +29,11 @@ permissions:
   issues: write
   pull-requests: write
 
+# Prevent concurrent executions that could cause Terraform state lock conflicts
+concurrency:
+  group: ephemeral-env-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # Don't cancel in-progress deployments
+
 env:
   AWS_REGION: ap-southeast-2
   AWS_ACCOUNT_ID: '911167929263'
@@ -38,9 +43,10 @@ jobs:
   provision-environment:
     if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened'
     runs-on: ubuntu-latest
+    # Prevent multiple provision jobs for the same PR from running concurrently
     concurrency:
-      group: terraform-state-${{ github.repository }}
-      cancel-in-progress: false
+      group: provision-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true  # Cancel previous provision if new one starts
     outputs:
       environment-id: ${{ steps.provision.outputs.environment-id }}
       environment-url: ${{ steps.provision.outputs.environment-url }}
@@ -264,10 +270,11 @@ jobs:
   cleanup-environment:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
+    # Prevent multiple cleanup jobs for the same PR from running concurrently
     concurrency:
-      group: terraform-state-${{ github.repository }}
-      cancel-in-progress: false
-
+      group: cleanup-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false  # Don't cancel cleanup operations
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -330,10 +337,11 @@ jobs:
   manual-action:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # Prevent multiple manual actions from running concurrently
     concurrency:
-      group: terraform-state-${{ github.repository }}
-      cancel-in-progress: false
-
+      group: manual-${{ github.event.inputs.action }}-${{ github.event.inputs.branch || github.ref }}
+      cancel-in-progress: false  # Don't cancel manual operations
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
