@@ -379,20 +379,31 @@ deploy_main() {
     
     # Check for state lock conflicts and handle them
     print_status "Checking for Terraform state lock conflicts..."
-    if ! terraform plan -detailed-exitcode -out=main.tfplan >/dev/null 2>&1; then
+    local plan_created=false
+    
+    if terraform plan -detailed-exitcode -out=main.tfplan >/dev/null 2>&1; then
+        local exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+            print_status "Terraform plan completed - no changes needed"
+            plan_created=true
+        elif [ $exit_code -eq 2 ]; then
+            print_status "Terraform plan completed - changes detected"
+            plan_created=true
+        fi
+    else
         local exit_code=$?
         if [ $exit_code -eq 1 ]; then
             # Check if it's a lock error
-            if terraform plan -detailed-exitcode 2>&1 | grep -q "Error acquiring the state lock\|Error releasing the state lock"; then
+            local plan_output=$(terraform plan -detailed-exitcode 2>&1)
+            if echo "$plan_output" | grep -q "Error acquiring the state lock\|Error releasing the state lock"; then
                 print_warning "Terraform state lock detected. Attempting to resolve..."
                 
                 # In CI/CD, we can force unlock if needed (with caution)
                 if [ "${CI}" = "true" ] || [ "${GITHUB_ACTIONS}" = "true" ]; then
                     print_warning "Attempting to force unlock Terraform state (CI/CD environment)"
                     # Get the lock ID from the error message if possible
-                    local lock_output=$(terraform plan 2>&1 || true)
-                    if echo "$lock_output" | grep -q "Lock ID:"; then
-                        local lock_id=$(echo "$lock_output" | grep "Lock ID:" | awk '{print $3}' | head -1)
+                    if echo "$plan_output" | grep -q "Lock ID:"; then
+                        local lock_id=$(echo "$plan_output" | grep "Lock ID:" | awk '{print $3}' | head -1)
                         if [ -n "$lock_id" ]; then
                             print_status "Attempting to force unlock with ID: $lock_id"
                             terraform force-unlock -force "$lock_id" || print_warning "Force unlock failed"
@@ -402,17 +413,26 @@ deploy_main() {
                 
                 # Retry the plan
                 print_status "Retrying Terraform plan after lock resolution..."
-                terraform plan -detailed-exitcode -out=main.tfplan
+                if terraform plan -detailed-exitcode -out=main.tfplan; then
+                    plan_created=true
+                    print_status "Terraform plan retry successful"
+                else
+                    print_error "Terraform plan retry failed"
+                    exit 1
+                fi
             else
                 # Re-run plan to show the actual error
-                terraform plan -detailed-exitcode -out=main.tfplan
+                print_error "Terraform plan failed with non-lock error:"
+                terraform plan -detailed-exitcode
+                exit 1
             fi
-        elif [ $exit_code -eq 2 ]; then
-            # Exit code 2 means changes detected, which is normal
-            print_status "Terraform plan completed - changes detected"
         fi
-    else
-        print_status "Terraform plan completed - no changes needed"
+    fi
+    
+    # Only proceed with apply if we have a valid plan
+    if [ "$plan_created" = "false" ]; then
+        print_error "No valid Terraform plan was created"
+        exit 1
     fi
     
     print_warning "About to deploy main infrastructure for environment: $ENVIRONMENT_NAME"
