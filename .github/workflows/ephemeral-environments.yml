@@ -38,6 +38,9 @@ jobs:
   provision-environment:
     if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened'
     runs-on: ubuntu-latest
+    concurrency:
+      group: terraform-state-${{ github.repository }}
+      cancel-in-progress: false
     outputs:
       environment-id: ${{ steps.provision.outputs.environment-id }}
       environment-url: ${{ steps.provision.outputs.environment-url }}
@@ -161,14 +164,44 @@ jobs:
             echo "CLI provisioning failed, using fallback deployment"
             cat cli_result.json 2>/dev/null || echo "No CLI output available"
 
-            chmod +x ./deploy-infrastructure.sh
-            ./deploy-infrastructure.sh deploy
+            # Fix state one more time before fallback deployment
+            echo "Running state recovery before fallback deployment..."
+            ./scripts/fix-terraform-state.sh || true
+            sleep 3
 
-            cd terraform
-            ENV_URL=$(terraform output -raw application_url 2>/dev/null || \
-                     echo "http://$(terraform output -raw load_balancer_dns_name 2>/dev/null)")
-            cd ..
-            ENV_ID="$ENVIRONMENT_NAME"
+            # Retry fallback deployment up to 2 times on state errors
+            FALLBACK_SUCCESS=false
+            for i in 1 2; do
+              echo "Fallback deployment attempt $i..."
+              chmod +x ./deploy-infrastructure.sh
+
+              if ./deploy-infrastructure.sh deploy 2>&1 | tee deploy_output.log; then
+                FALLBACK_SUCCESS=true
+                break
+              fi
+
+              # Check if it's a state error
+              if grep -q "state data in S3 does not have the expected content" deploy_output.log; then
+                echo "State error in fallback deployment, fixing..."
+                ./scripts/fix-terraform-state.sh || true
+                sleep 5
+              else
+                echo "Different error, not retrying"
+                break
+              fi
+            done
+
+            if [ "$FALLBACK_SUCCESS" = "true" ]; then
+              cd terraform
+              ENV_URL=$(terraform output -raw application_url 2>/dev/null || \
+                       echo "http://$(terraform output -raw load_balancer_dns_name 2>/dev/null)")
+              cd ..
+              ENV_ID="$ENVIRONMENT_NAME"
+            else
+              echo "ERROR: Fallback deployment failed"
+              ENV_ID="$ENVIRONMENT_NAME"
+              ENV_URL="http://deployment-failed"
+            fi
           fi
 
           echo "environment-id=$ENV_ID" >> $GITHUB_OUTPUT
@@ -214,6 +247,9 @@ jobs:
   cleanup-environment:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
+    concurrency:
+      group: terraform-state-${{ github.repository }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
@@ -277,6 +313,9 @@ jobs:
   manual-action:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    concurrency:
+      group: terraform-state-${{ github.repository }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
