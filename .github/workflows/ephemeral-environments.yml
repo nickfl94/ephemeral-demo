@@ -123,46 +123,44 @@ jobs:
 
           echo "Provisioning: $ENVIRONMENT_NAME (branch: $BRANCH_NAME)"
 
-          # Function to fix state and retry
-          provision_with_retry() {
-            local max_attempts=3
-            local attempt=1
+          # Try provisioning (with increased timeout)
+          echo "Starting provisioning..."
+          timeout 600 npm run start -- provision \
+            --branch "$BRANCH_NAME" \
+            --template demo \
+            --region ${{ env.AWS_REGION }} \
+            --instance-type t3.micro \
+            --max-lifetime 4 \
+            --cost-threshold 25 \
+            --output json > cli_result.json 2>&1 || CLI_FAILED=true
 
-            while [ $attempt -le $max_attempts ]; do
-              echo "Provisioning attempt $attempt of $max_attempts..."
+          # Check for state error specifically
+          if [ "$CLI_FAILED" = "true" ] && grep -q "state data in S3 does not have the expected content" cli_result.json 2>/dev/null; then
+            echo "State checksum error detected, fixing and retrying once..."
+            ./scripts/fix-terraform-state.sh
+            sleep 5
 
-              timeout 300 npm run start -- provision \
-                --branch "$BRANCH_NAME" \
-                --template demo \
-                --region ${{ env.AWS_REGION }} \
-                --instance-type t3.micro \
-                --max-lifetime 4 \
-                --cost-threshold 25 \
-                --output json > cli_result.json 2>&1 && return 0
+            # Retry once after fixing state
+            timeout 600 npm run start -- provision \
+              --branch "$BRANCH_NAME" \
+              --template demo \
+              --region ${{ env.AWS_REGION }} \
+              --instance-type t3.micro \
+              --max-lifetime 4 \
+              --cost-threshold 25 \
+              --output json > cli_result.json 2>&1 && CLI_FAILED=false
+          fi
 
-              # Check if it's a state error
-              if grep -q "state data in S3 does not have the expected content" cli_result.json 2>/dev/null; then
-                echo "State checksum error detected, attempting to fix..."
-                ./scripts/fix-terraform-state.sh
-                sleep 5
-              else
-                # Different error, break out
-                return 1
-              fi
-
-              attempt=$((attempt + 1))
-            done
-
-            return 1
-          }
-
-          # Try provisioning with retry logic
-          if provision_with_retry; then
+          # Process results
+          if [ "$CLI_FAILED" != "true" ] && [ -f "cli_result.json" ]; then
             RESULT=$(cat cli_result.json)
             ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId // "'$ENVIRONMENT_NAME'"')
             ENV_URL=$(echo "$RESULT" | jq -r '.data.urls.application // "http://pending-deployment"')
+            echo "Provisioning completed via CLI"
           else
-            echo "CLI provisioning failed after retries, using fallback deployment"
+            echo "CLI provisioning failed, using fallback deployment"
+            cat cli_result.json 2>/dev/null || echo "No CLI output available"
+
             chmod +x ./deploy-infrastructure.sh
             ./deploy-infrastructure.sh deploy
 
