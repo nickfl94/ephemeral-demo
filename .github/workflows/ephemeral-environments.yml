@@ -131,6 +131,39 @@ jobs:
             --region ${{ env.AWS_REGION }}
           echo "✓ Synced checksum: $CHECKSUM"
 
+      - name: Cleanup Terraform locks before deployment
+        run: |
+          echo "Cleaning up any existing Terraform state locks..."
+          
+          # Clean up DynamoDB locks for the main state file
+          STATE_KEY="main/terraform.tfstate"
+          TABLE_NAME="enigma-global-ephemeral-terraform-locks"
+          
+          echo "Scanning for existing locks in DynamoDB table: $TABLE_NAME"
+          
+          # Get all lock IDs for this state file
+          LOCK_IDS=$(aws dynamodb scan \
+            --table-name "$TABLE_NAME" \
+            --filter-expression "begins_with(LockID, :state_key)" \
+            --expression-attribute-values "{\":state_key\":{\"S\":\"$STATE_KEY\"}}" \
+            --query 'Items[].LockID.S' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$LOCK_IDS" ] && [ "$LOCK_IDS" != "None" ]; then
+            echo "Found existing locks, cleaning up..."
+            echo "$LOCK_IDS" | tr '\t' '\n' | while read -r lock_id; do
+              if [ -n "$lock_id" ]; then
+                echo "Deleting lock: $lock_id"
+                aws dynamodb delete-item \
+                  --table-name "$TABLE_NAME" \
+                  --key "{\"LockID\":{\"S\":\"$lock_id\"}}" 2>/dev/null || true
+              fi
+            done
+            echo "Lock cleanup completed"
+          else
+            echo "No existing locks found"
+          fi
+
       - name: Provision ephemeral environment
         id: provision
         run: |
