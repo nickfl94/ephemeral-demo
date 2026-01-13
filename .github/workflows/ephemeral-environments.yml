@@ -91,6 +91,20 @@ jobs:
 
           echo "✓ AWS credentials verified"
 
+      - name: Fix Terraform state if needed
+        run: |
+          unset AWS_PROFILE AWS_DEFAULT_PROFILE
+
+          # Export state configuration for the fix script
+          export TERRAFORM_STATE_BUCKET="${{ secrets.TERRAFORM_STATE_BUCKET }}"
+          export TERRAFORM_STATE_KEY="main/terraform.tfstate"
+          export TERRAFORM_STATE_TABLE="${{ secrets.TERRAFORM_STATE_TABLE }}"
+          export AWS_REGION="${{ env.AWS_REGION }}"
+
+          # Make script executable and run it
+          chmod +x ./scripts/fix-terraform-state.sh
+          ./scripts/fix-terraform-state.sh || echo "State recovery attempted"
+
       - name: Provision ephemeral environment
         id: provision
         run: |
@@ -103,20 +117,52 @@ jobs:
           export CI=true
           export GITHUB_ACTIONS=true
           export TF_VAR_aws_profile=""
+          export TERRAFORM_STATE_BUCKET="${{ secrets.TERRAFORM_STATE_BUCKET }}"
+          export TERRAFORM_STATE_KEY="main/terraform.tfstate"
+          export TERRAFORM_STATE_TABLE="${{ secrets.TERRAFORM_STATE_TABLE }}"
 
           echo "Provisioning: $ENVIRONMENT_NAME (branch: $BRANCH_NAME)"
 
-          timeout 300 npm run start -- provision \
-            --branch "$BRANCH_NAME" \
-            --template demo \
-            --region ${{ env.AWS_REGION }} \
-            --instance-type t3.micro \
-            --max-lifetime 4 \
-            --cost-threshold 25 \
-            --output json > cli_result.json 2>&1 || CLI_FAILED=true
+          # Function to fix state and retry
+          provision_with_retry() {
+            local max_attempts=3
+            local attempt=1
 
-          if [ "$CLI_FAILED" = "true" ] || [ ! -f "cli_result.json" ]; then
-            echo "CLI provisioning failed, using fallback deployment"
+            while [ $attempt -le $max_attempts ]; do
+              echo "Provisioning attempt $attempt of $max_attempts..."
+
+              timeout 300 npm run start -- provision \
+                --branch "$BRANCH_NAME" \
+                --template demo \
+                --region ${{ env.AWS_REGION }} \
+                --instance-type t3.micro \
+                --max-lifetime 4 \
+                --cost-threshold 25 \
+                --output json > cli_result.json 2>&1 && return 0
+
+              # Check if it's a state error
+              if grep -q "state data in S3 does not have the expected content" cli_result.json 2>/dev/null; then
+                echo "State checksum error detected, attempting to fix..."
+                ./scripts/fix-terraform-state.sh
+                sleep 5
+              else
+                # Different error, break out
+                return 1
+              fi
+
+              attempt=$((attempt + 1))
+            done
+
+            return 1
+          }
+
+          # Try provisioning with retry logic
+          if provision_with_retry; then
+            RESULT=$(cat cli_result.json)
+            ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId // "'$ENVIRONMENT_NAME'"')
+            ENV_URL=$(echo "$RESULT" | jq -r '.data.urls.application // "http://pending-deployment"')
+          else
+            echo "CLI provisioning failed after retries, using fallback deployment"
             chmod +x ./deploy-infrastructure.sh
             ./deploy-infrastructure.sh deploy
 
@@ -125,10 +171,6 @@ jobs:
                      echo "http://$(terraform output -raw load_balancer_dns_name 2>/dev/null)")
             cd ..
             ENV_ID="$ENVIRONMENT_NAME"
-          else
-            RESULT=$(cat cli_result.json)
-            ENV_ID=$(echo "$RESULT" | jq -r '.data.environmentId // "'$ENVIRONMENT_NAME'"')
-            ENV_URL=$(echo "$RESULT" | jq -r '.data.urls.application // "http://pending-deployment"')
           fi
 
           echo "environment-id=$ENV_ID" >> $GITHUB_OUTPUT
