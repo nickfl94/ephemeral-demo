@@ -1,73 +1,60 @@
 # AWS Profile CI/CD Fix Summary
 
-## Problem
-The GitHub Actions workflow was failing because Terraform was trying to use the AWS profile `nick_fletcher-911167929263` which doesn't exist in the CI environment, even though AWS credentials were properly configured.
+## Issue
+GitHub Actions workflow was failing with the error:
+```
+Error: failed to get shared config profile, nick_fletcher-911167929263
+```
+
+This occurred because the Terraform configuration was trying to use a local AWS profile that doesn't exist in the CI/CD environment.
 
 ## Root Cause
-- **Local Development**: Uses AWS profile `nick_fletcher-911167929263` (correct)
-- **GitHub Actions**: Should use direct AWS credentials from `aws-actions/configure-aws-credentials` (no profile)
-- **Issue**: Terraform was always trying to use the profile from `terraform.tfvars` regardless of environment
+1. The orchestrator was setting `AWS_PROFILE` and `TF_VAR_aws_profile` environment variables even in CI/CD environments
+2. The main Terraform configuration (`terraform/main.tf`) didn't have proper profile handling like the bootstrap configuration
+3. The deployment script wasn't properly configuring the `aws_profile` variable in `terraform.tfvars`
 
-## Solution Applied
+## Solution
 
-### 1. GitHub Actions Environment Variables
-Updated the workflow to override the AWS profile for CI/CD:
-```bash
-# Override AWS profile for CI/CD - use direct credentials instead of profile
-export AWS_PROFILE=""
-export TF_VAR_aws_profile=""
-```
+### 1. Updated Orchestrator (`src/orchestrator/demo-orchestrator.ts`)
+- Added CI/CD detection to clear AWS profile variables when running in GitHub Actions
+- In CI/CD environments: removes `AWS_PROFILE` and `TF_VAR_aws_profile` to use direct credentials
+- In local development: preserves existing profile configuration
 
-### 2. Bootstrap Terraform Configuration
-Updated `terraform/bootstrap/main.tf` to respect the TF_VAR override:
-```hcl
-provider "aws" {
-  region = var.aws_region
-  # Use profile from variable, which can be overridden by TF_VAR_aws_profile
-  profile = var.aws_profile != "" ? var.aws_profile : null
-}
-```
+### 2. Updated Main Terraform Configuration (`terraform/main.tf`)
+- Added profile configuration to AWS provider to match bootstrap configuration
+- Uses `var.aws_profile` with null fallback for CI/CD environments
 
-### 3. Orchestrator Environment Variables
-Updated `src/orchestrator/demo-orchestrator.ts` to pass through the TF_VAR override:
-```typescript
-AWS_PROFILE: process.env.AWS_PROFILE || undefined,
-TF_VAR_aws_profile: process.env.TF_VAR_aws_profile || process.env.AWS_PROFILE || undefined
-```
+### 3. Added AWS Profile Variable (`terraform/variables.tf`)
+- Added `aws_profile` variable with empty string default
+- Allows profile to be set via Terraform variables or environment
 
-## How It Works Now
+### 4. Updated Deployment Script (`deploy-infrastructure.sh`)
+- Enhanced `create_terraform_vars()` function to properly set `aws_profile` in `terraform.tfvars`
+- CI/CD environments: sets `aws_profile = ""`
+- Local development: uses `$AWS_PROFILE` if set, otherwise empty string
+
+## Configuration Behavior
+
+### CI/CD Environment (GitHub Actions)
+- Uses direct AWS credentials from secrets
+- No AWS profile specified (`aws_profile = ""`)
+- Terraform uses default credential chain
 
 ### Local Development
-- Uses `terraform/bootstrap/terraform.tfvars` with `aws_profile = "nick_fletcher-911167929263"`
-- Terraform uses the specified profile
-- Works with your local AWS configuration
+- Uses AWS profile if `AWS_PROFILE` environment variable is set
+- Falls back to default credentials if no profile specified
+- Maintains existing local development workflow
 
-### GitHub Actions CI/CD
-- Sets `AWS_PROFILE=""` and `TF_VAR_aws_profile=""`
-- Terraform receives empty profile variable → uses `null` profile
-- Falls back to default AWS credentials from `aws-actions/configure-aws-credentials`
-- Uses the correct AWS account (911167929263) with direct credentials
+## Testing
+- ✅ CLI builds successfully
+- ✅ TypeScript compilation passes
+- ✅ Profile handling logic implemented correctly
+- 🔄 Ready for GitHub Actions testing
 
-## Configuration Files
+## Files Modified
+- `src/orchestrator/demo-orchestrator.ts` - Fixed profile handling in CI/CD
+- `terraform/main.tf` - Added profile configuration to AWS provider
+- `terraform/variables.tf` - Added aws_profile variable
+- `deploy-infrastructure.sh` - Enhanced terraform.tfvars generation
 
-### terraform/bootstrap/terraform.tfvars (unchanged)
-```hcl
-state_bucket_name    = "enigma-global-ephemeral-terraform-state-2025"
-dynamodb_table_name  = "enigma-global-ephemeral-terraform-locks"
-aws_region          = "ap-southeast-2"
-aws_profile         = "nick_fletcher-911167929263"
-```
-
-### GitHub Actions Workflow
-```yaml
-# Set environment variables for deployment
-export AWS_PROFILE=""
-export TF_VAR_aws_profile=""
-```
-
-## Expected Result
-- **Local**: Uses `nick_fletcher-911167929263` profile ✅
-- **GitHub Actions**: Uses direct AWS credentials (no profile) ✅
-- **Both**: Deploy to the same AWS account (911167929263) ✅
-
-The next PR should now successfully provision infrastructure without AWS profile errors.
+This fix ensures that the same codebase works correctly in both local development (with AWS profiles) and CI/CD environments (with direct credentials).
